@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { fetchPregnancy } from '../api/pregnancy';
+import { lookupTGA } from '../api/tgaLookup';
+import TGACategoryBadge from './TGACategoryBadge';
+import ExternalLinks from './ExternalLinks';
 import ShareButton from './ShareButton';
 
 function formatDate(yyyymmdd) {
@@ -25,6 +28,8 @@ export default function DrugCard({ drug }) {
   const [openSections, setOpenSections] = useState({});
   const abortRef = useRef(null);
   const fetchedRef = useRef(false);
+
+  const tga = lookupTGA(drug.title);
 
   useEffect(() => {
     return () => abortRef.current?.abort();
@@ -72,42 +77,42 @@ export default function DrugCard({ drug }) {
         )}
       </div>
 
-      {pregnancy?.riskSummary && (
-        <div className="mt-3 rounded-2xl bg-teal-50 p-4 dark:bg-teal-900/20">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Risk Summary
-          </h3>
-          <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-            {pregnancy.riskSummary}
-          </p>
-        </div>
-      )}
+      {tga && <TGACategoryBadge category={tga.category} statement={tga.statement} />}
 
       {!pregnancy && !loading && !error && (
         <button
           onClick={ensurePregnancy}
           className="mt-3 flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 px-4 py-3 text-sm font-medium text-teal-600 active:bg-slate-50 dark:border-slate-800 dark:text-teal-400 dark:active:bg-slate-800"
         >
-          Show pregnancy details
+          Show FDA pregnancy labeling
         </button>
       )}
 
       {loading && !pregnancy && (
-        <p className="mt-3 py-2 text-center text-sm text-slate-400 dark:text-slate-500">Loading pregnancy data...</p>
+        <p className="mt-3 py-2 text-center text-sm text-slate-400 dark:text-slate-500">Loading FDA data...</p>
       )}
 
       {error && !pregnancy && (
         <p className="mt-3 py-2 text-center text-sm text-red-500 dark:text-red-400">{error}</p>
       )}
 
-      {pregnancy && !pregnancy.riskSummary && !pregnancy.clinicalConsiderations && !pregnancy.data && !pregnancy.pregnancyRegistry && (
-        <p className="mt-3 py-2 text-sm text-slate-400 dark:text-slate-500">
-          No pregnancy labeling data available for this drug.
-        </p>
-      )}
-
-      {pregnancy && (pregnancy.clinicalConsiderations || pregnancy.data || pregnancy.pregnancyRegistry) && (
+      {pregnancy && (
         <div className="mt-4 divide-y divide-slate-100 rounded-2xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+          <div className="px-4 py-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              US FDA Labeling
+            </h3>
+          </div>
+
+          {pregnancy.riskSummary && (
+            <div className="px-4 py-3">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Risk Summary</p>
+              <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                {pregnancy.riskSummary}
+              </p>
+            </div>
+          )}
+
           {SECTIONS.map(({ key, label }) => {
             const isOpen = openSections[key];
             const content = pregnancy?.[key];
@@ -145,8 +150,18 @@ export default function DrugCard({ drug }) {
               </div>
             );
           })}
+
+          {!pregnancy.riskSummary && !pregnancy.clinicalConsiderations && !pregnancy.data && !pregnancy.pregnancyRegistry && (
+            <div className="px-4 py-3">
+              <p className="text-sm text-slate-400 dark:text-slate-500">
+                No FDA pregnancy labeling data available for this drug.
+              </p>
+            </div>
+          )}
         </div>
       )}
+
+      <ExternalLinks drugName={drug.title} />
 
       <div className="mt-4 flex justify-end">
         <ShareButton drugTitle={drug.title} />

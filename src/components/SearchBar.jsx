@@ -9,7 +9,7 @@ export default function SearchBar({ query, onChange, onHomeClick }) {
             className="mb-3 cursor-pointer w-fit"
             onClick={onHomeClick}
           >
-            <img src="/logo.png" alt="Matria" className="h-20 dark:invert dark:hue-rotate-180" />
+            <img src="/logo.png" alt="Matria" className="h-20 rounded-xl" />
           </h1>
         </div>
         <ThemeToggle />

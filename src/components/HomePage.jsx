@@ -1,5 +1,5 @@
 const POPULAR_DRUGS = [
-  'Acetaminophen',
+  'Paracetamol',
   'Sertraline',
   'Levothyroxine',
   'Ondansetron',
@@ -17,7 +17,7 @@ export default function HomePage({ onDrugSelect }) {
           Evidence-based medication safety in pregnancy
         </h1>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Search any drug or brand name for FDA pregnancy labeling information from the DailyMed database.
+          Search any drug or brand name for pregnancy safety information from the Australian TGA and FDA.
         </p>
       </div>
 
@@ -41,16 +41,25 @@ export default function HomePage({ onDrugSelect }) {
       <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-bold tracking-tight text-sky-900 dark:text-slate-100">About Matria</h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-          Matria helps parents and healthcare providers quickly look up FDA pregnancy labeling for medications. Data comes from{' '}
+          Matria helps parents and healthcare providers quickly look up pregnancy safety information for medications. Data comes from the{' '}
           <a
-            href="https://dailymed.nlm.nih.gov/dailymed/"
+            href="https://www.tga.gov.au/resources/publication/publications/prescribing-medicines-pregnancy-database"
             target="_blank"
             rel="noopener noreferrer"
             className="text-teal-600 underline hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
           >
-            DailyMed
+            Australian TGA
           </a>
-          , the official FDA label repository maintained by the National Library of Medicine, containing labeling for thousands of FDA-approved drugs.
+          {' '}(pregnancy categories and safety statements) and the{' '}
+          <a
+            href="https://open.fda.gov/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-teal-600 underline hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"
+          >
+            US FDA (OpenFDA)
+          </a>
+          {' '}(detailed pregnancy labeling).
         </p>
       </div>
     </div>

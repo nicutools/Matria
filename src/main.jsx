@@ -26,7 +26,7 @@ if ('serviceWorker' in navigator) {
 
 async function warmCommonDrugs() {
   const drugs = [
-    'Acetaminophen', 'Sertraline', 'Levothyroxine', 'Ondansetron',
+    'Paracetamol', 'Sertraline', 'Levothyroxine', 'Ondansetron',
     'Metformin', 'Azithromycin', 'Amoxicillin', 'Ibuprofen',
   ];
 

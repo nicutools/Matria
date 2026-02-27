@@ -1,7 +1,7 @@
 {
   "name": "Matria",
   "short_name": "Matria",
-  "description": "Evidence-based medication safety in pregnancy, powered by the FDA DailyMed database.",
+  "description": "Evidence-based medication safety in pregnancy, powered by the Australian TGA and FDA.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fafafa",
