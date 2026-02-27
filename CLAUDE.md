@@ -38,7 +38,7 @@
    - Falls back to prefix match, then unfiltered if exact match removes everything
    - **Deduplication:** Groups by salt-stripped generic name, prefers labels with pregnancy data, then most recent `effective_time`
    - Merges brand names across grouped labels, strips salt forms from display titles
-5. **Client-side:** `src/api/dailymed.js` (named for historical reasons) fetches `/api/search` and returns `{ results }`.
+5. **Client-side:** `src/api/search.js` fetches `/api/search` and returns `{ results }`.
 6. **Display:**
    - **Multiple results:** Compact title list. Tap to view full card. "All results" back button.
    - **Single result:** Full DrugCard shown directly.
@@ -113,7 +113,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 - `src/api/tgaLookup.js` — TGA lookup with US→AU name fallback
 - `src/data/brandToGeneric.json` — Static brand-to-generic mappings (~400 entries)
 - `src/api/brandResolver.js` — Brand + international name resolution
-- `src/api/dailymed.js` — Client search wrapper (fetches `/api/search`; name is historical)
+- `src/api/search.js` — Client search wrapper (fetches `/api/search`)
 - `src/api/pregnancy.js` — Client pregnancy wrapper (fetches `/api/pregnancy`)
 - `functions/api/search.js` — OpenFDA search proxy: exact-match filter, salt-strip dedup, brand merging
 - `functions/api/pregnancy.js` — OpenFDA pregnancy data: 3-tier field fallback, subsection splitting
@@ -161,11 +161,11 @@ Shared with Lactia:
 ## 9. Roadmap
 
 ### Polish & Completeness
-- [ ] **Rename `src/api/dailymed.js`** → `src/api/search.js` to reflect that it calls OpenFDA, not DailyMed. Update imports in `App.jsx` and `main.jsx`
+- [x] **Rename `src/api/dailymed.js`** → `src/api/search.js` to reflect that it calls OpenFDA, not DailyMed. Update imports in `App.jsx` and `main.jsx`
 
 ### Features
-- [ ] **Brand names on DrugCard** — Display `brandNames[]` (already returned by search proxy) as subtitle text or pill badges under the drug title, so users can confirm they found the right drug
-- [ ] **Lactation cross-link** — Add a "View breastfeeding safety on Lactia" link on each DrugCard that deep-links to Lactia with the same generic name (e.g. `https://lactia.nicutools.org/?drug={genericName}`)
+- [x] **Brand names on DrugCard** — Display `brandNames[]` as subtitle text under the drug title ("Also sold as ...")
+- [x] **Lactation cross-link** — "Breastfeeding safety on Lactia" link in ExternalLinks, deep-links to `https://lactia.nicutools.org/?drug={genericName}`
 - [ ] **"No pregnancy data" indicator in multi-result list** — The search proxy already tracks whether labels have pregnancy data during dedup. Pass this through to the client and show a subtle badge or dimmed styling on results that lack pregnancy labeling, so users don't tap into dead ends
 - [ ] **Recent searches** — Store last ~10 successful searches in `localStorage`. Display on HomePage below the popular drug pills (or replace them once user has history). Tap to re-search, with a clear button to reset. No backend needed
 

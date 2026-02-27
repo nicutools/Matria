@@ -45,7 +45,26 @@ export default function ExternalLinks({ drugName }) {
     ? `https://mothertobaby.org/fact-sheets/${mtbSlug}/`
     : null;
 
-  if (!bumpsUrl && !mtbUrl) return null;
+  const lactiaUrl = `https://lactia.nicutools.org/?drug=${encodeURIComponent(drugName.trim())}`;
+
+  if (!bumpsUrl && !mtbUrl) return (
+    <div className="mt-4 rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        Related
+      </h3>
+      <div className="mt-2 flex flex-col gap-2">
+        <a
+          href={lactiaUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-teal-600 active:bg-slate-100 dark:bg-slate-800 dark:text-teal-400 dark:active:bg-slate-700"
+        >
+          <ExternalLinkIcon />
+          <span>Breastfeeding safety on Lactia</span>
+        </a>
+      </div>
+    </div>
+  );
 
   return (
     <div className="mt-4 rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
@@ -75,6 +94,15 @@ export default function ExternalLinks({ drugName }) {
             <span>MotherToBaby (US) — Fact Sheet</span>
           </a>
         )}
+        <a
+          href={lactiaUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-teal-600 active:bg-slate-100 dark:bg-slate-800 dark:text-teal-400 dark:active:bg-slate-700"
+        >
+          <ExternalLinkIcon />
+          <span>Breastfeeding safety on Lactia</span>
+        </a>
       </div>
     </div>
   );

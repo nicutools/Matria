@@ -4,7 +4,7 @@ import DrugCard from './components/DrugCard';
 import BrandBadge from './components/BrandBadge';
 import Disclaimer from './components/Disclaimer';
 import HomePage from './components/HomePage';
-import { searchDrugs } from './api/dailymed';
+import { searchDrugs } from './api/search';
 import { resolveBrand } from './api/brandResolver';
 
 function getUrlDrug() {

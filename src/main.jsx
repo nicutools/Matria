@@ -30,7 +30,7 @@ async function warmCommonDrugs() {
     'Metformin', 'Azithromycin', 'Amoxicillin', 'Ibuprofen',
   ];
 
-  const { searchDrugs } = await import('./api/dailymed.js');
+  const { searchDrugs } = await import('./api/search.js');
 
   for (const drug of drugs) {
     try {

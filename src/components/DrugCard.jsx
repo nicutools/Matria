@@ -69,6 +69,11 @@ export default function DrugCard({ drug }) {
       <h2 className="text-lg font-bold tracking-tight text-sky-900 dark:text-slate-100">
         {drug.title}
       </h2>
+      {drug.brandNames?.length > 0 && (
+        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+          Also sold as {drug.brandNames.slice().sort((a, b) => a.length - b.length).slice(0, 3).join(', ')}
+        </p>
+      )}
 
       {tga && <TGACategoryBadge category={tga.category} statement={tga.statement} updatedDate={TGA_UPDATED} />}
 
