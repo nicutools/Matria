@@ -166,8 +166,8 @@ Shared with Lactia:
 ### Features
 - [x] **Brand names on DrugCard** — Display `brandNames[]` as subtitle text under the drug title ("Also sold as ...")
 - [x] **Lactation cross-link** — "Breastfeeding safety on Lactia" link in ExternalLinks, deep-links to `https://lactia.nicutools.org/?drug={genericName}`
-- [ ] **"No pregnancy data" indicator in multi-result list** — The search proxy already tracks whether labels have pregnancy data during dedup. Pass this through to the client and show a subtle badge or dimmed styling on results that lack pregnancy labeling, so users don't tap into dead ends
-- [ ] **Recent searches** — Store last ~10 successful searches in `localStorage`. Display on HomePage below the popular drug pills (or replace them once user has history). Tap to re-search, with a clear button to reset. No backend needed
+- [x] **"No pregnancy data" indicator in multi-result list** — Search proxy passes `hasPregnancyData` to client. Results without FDA data are dimmed with "No FDA data" badge.
+- [x] **Recent searches** — Last 10 successful searches stored in `localStorage`. Shown on HomePage above common searches with teal ring styling and clear button.
 
 ### Data Quality
 - [ ] **Better text formatting** — The raw PLLR text is often a single long block. Detect paragraph breaks, bullet points, and sub-headings in the labeling text and render with proper whitespace and structure
