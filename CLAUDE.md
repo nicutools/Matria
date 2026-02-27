@@ -1,20 +1,27 @@
 # CLAUDE.md — Project: Matria
 
 ## 1. Vision & Strategy
-**Purpose:** A mobile-first web app for looking up FDA pregnancy labeling for medications. Sister project to [Lactia](https://github.com/nicutools/LactMed) (breastfeeding safety).
+**Purpose:** A mobile-first web app for looking up pregnancy safety information for medications, combining Australian TGA pregnancy categories with US FDA labeling. Sister project to [Lactia](https://github.com/nicutools/LactMed) (breastfeeding safety).
 
-**Target Users:** Parents and healthcare providers needing pregnancy-specific drug safety information.
+**Target Users:** Australian parents and healthcare providers needing pregnancy-specific drug safety information.
 
-**Data Source:** OpenFDA Drug Label API — structured JSON containing FDA-approved labeling, including pregnancy sections from Structured Product Labeling (SPL).
+**CRITICAL — Accuracy & Currency:** This app provides health information that directly affects clinical decisions for pregnant women and their unborn children. Inaccurate, outdated, or fabricated information can cause real harm. Every piece of data shown to users must be traceable to an authoritative source (TGA, FDA). Never invent, guess, or hallucinate drug safety data. Never hard-code safety statements or category ratings in UI code — always source them from the TGA database or FDA API. When in doubt, show nothing rather than show something wrong. Display dates and source attribution so users can assess currency themselves.
+
+**Data Sources:**
+- **Australian TGA** — Pregnancy categories (A/B1/B2/B3/C/D/X) and safety statements for 1,704 drugs. Static JSON bundled in the app, updated by running `node scripts/convert-tga-csv.js` when TGA publishes new data.
+- **OpenFDA Drug Label API** — Detailed US FDA pregnancy labeling (PLLR Section 8.1) fetched on demand via Pages Function proxies.
 
 ## 2. Technology Stack
 - **Frontend:** React (Vite) + Tailwind CSS
 - **Hosting:** Cloudflare Pages (static assets + Pages Functions)
-- **Data Source:** OpenFDA Drug Label API (`api.fda.gov/drug/label.json`)
+- **Data Sources:** TGA (static JSON) + OpenFDA API (`api.fda.gov/drug/label.json`)
 - **API Proxies:** Two Cloudflare Pages Functions proxy OpenFDA requests (CORS bypass + server-side filtering)
 - **State Management:** React useState
-- **Deploy:** `npm run build && npx wrangler pages deploy dist`
+- **Deploy:** `npm run build && npx wrangler pages deploy dist --project-name matria`
 - **Local dev with functions:** `npm run build && npx wrangler pages dev dist`
+- **Version:** 1.0.0
+- **Repo:** https://github.com/nicutools/Matria
+- **Live:** https://matria.pages.dev
 
 ## 3. Core Architecture
 
@@ -36,8 +43,15 @@
    - **Single result:** Full DrugCard shown directly.
    - 3-character minimum query length with 350ms debounce.
 
-### B. Pregnancy Data (OpenFDA via Pages Function Proxy)
-DrugCard has a "Show pregnancy details" button that lazy-loads full pregnancy labeling:
+### B. TGA Pregnancy Categories (Static, Instant)
+Shown immediately on every DrugCard without any API call:
+1. **Data:** `src/data/tgaPregnancy.json` — 1,704 drugs with category + safety statement, generated from TGA CSV.
+2. **Lookup:** `src/api/tgaLookup.js` — tries drug name as-is, then US→AU name fallback (acetaminophen→paracetamol, albuterol→salbutamol, etc.).
+3. **Display:** `TGACategoryBadge` — colour-coded wash (green/amber/orange/red) with category letter, description, and safety statement all visible without tapping.
+4. **Update:** Run `node scripts/convert-tga-csv.js` when TGA publishes updated CSV (a few times per year).
+
+### C. FDA Pregnancy Labeling (OpenFDA via Pages Function Proxy)
+Secondary to TGA, loaded on demand via "Show FDA pregnancy labeling" button:
 1. **Endpoint:** `GET /api/pregnancy?name={genericName}` — Cloudflare Pages Function at `functions/api/pregnancy.js`.
 2. **Three-tier pregnancy field fallback:**
    - **Tier 1 (score 3):** `pregnancy` field — new PLLR format (Section 8.1, LOINC 42228-7). Split into subsections.
@@ -50,40 +64,63 @@ DrugCard has a "Show pregnancy details" button that lazy-loads full pregnancy la
    - "Data" → `data`
 4. **Exact-match filtering:** Same `stripSalt()` logic as search — only uses labels where generic_name exactly matches the query.
 5. **Caching:** `Cache-Control: public, max-age=86400` (24h CDN cache).
+6. **Display:** Grouped under "US FDA Labeling" header with Risk Summary, then accordion sections for Clinical Considerations, Data, and Pregnancy Exposure Registry.
 
-### C. Name Resolution (Brand + International Generic)
+### D. External Patient Information Links
+`ExternalLinks` component at bottom of DrugCard:
+- **BUMPS (UK):** Links to `medicinesinpregnancy.org/leaflets-a-z/{name}/` using INN/AU drug names. Shown for all drugs.
+- **MotherToBaby (US):** Static mapping of ~50 common drugs to known fact-sheet slugs. Only shown when a mapping exists.
+
+### E. Name Resolution (Brand + International Generic)
 Same architecture as Lactia:
 1. **Local brand mapping:** `src/data/brandToGeneric.json` (~400 AU/UK/US brand-to-generic mappings).
 2. **RxNorm API fallback:** Resolves international generic names to US names (paracetamol → acetaminophen).
 3. **Display:** `<BrandBadge>` shows "is a brand name for" or "is also known as".
 
-### D. Salt Form Stripping
+### F. Salt Form Stripping
 Both search and pregnancy endpoints strip common salt forms for matching and display:
 `HYDROCHLORIDE, HCL, SULFATE, SODIUM, POTASSIUM, MESYLATE, MALEATE, FUMARATE, TARTRATE, BESYLATE, SUCCINATE, CITRATE, ACETATE, PHOSPHATE, BROMIDE, CHLORIDE, NITRATE, CALCIUM, MAGNESIUM, BITARTRATE`
 
 ## 4. Data Schema
+
+### Search Result (from OpenFDA proxy)
 | Field | Source | Description |
 |:---|:---|:---|
 | `title` | `openfda.generic_name[0]` (salt-stripped, title-cased) | Display name for the drug |
 | `brandNames` | `openfda.brand_name[]` (merged, salt-stripped, deduped) | Known brand names |
 | `effectiveTime` | `effective_time` (YYYYMMDD) | Label effective date |
+
+### TGA Data (static JSON)
+| Field | Source | Description |
+|:---|:---|:---|
+| `category` | TGA CSV | A, B1, B2, B3, C, D, or X |
+| `statement` | TGA CSV | Safety statement (740 of 1,704 drugs have one) |
+
+### FDA Pregnancy Data (from OpenFDA proxy)
+| Field | Source | Description |
+|:---|:---|:---|
 | `riskSummary` | `pregnancy` / `teratogenic_effects` / `pregnancy_or_breast_feeding` | Risk overview |
 | `clinicalConsiderations` | Subsection of `pregnancy` (PLLR only) | Disease/dose/labor considerations |
 | `data` | Subsection of `pregnancy` (PLLR only) | Human and animal data |
 | `pregnancyRegistry` | Subsection of `pregnancy` (PLLR only) | Exposure registry info |
 
 ## 5. Key Files
+- `scripts/convert-tga-csv.js` — Downloads TGA CSV, converts to JSON (run manually when TGA updates)
+- `src/data/tgaPregnancy.json` — Static TGA pregnancy data (1,704 drugs, ~250KB)
+- `src/api/tgaLookup.js` — TGA lookup with US→AU name fallback
+- `src/data/brandToGeneric.json` — Static brand-to-generic mappings (~400 entries)
+- `src/api/brandResolver.js` — Brand + international name resolution
+- `src/api/dailymed.js` — Client search wrapper (fetches `/api/search`; name is historical)
+- `src/api/pregnancy.js` — Client pregnancy wrapper (fetches `/api/pregnancy`)
 - `functions/api/search.js` — OpenFDA search proxy: exact-match filter, salt-strip dedup, brand merging
 - `functions/api/pregnancy.js` — OpenFDA pregnancy data: 3-tier field fallback, subsection splitting
-- `src/api/dailymed.js` — Client search wrapper (fetches `/api/search`)
-- `src/api/pregnancy.js` — Client pregnancy wrapper (fetches `/api/pregnancy`)
-- `src/api/brandResolver.js` — Brand + international name resolution
-- `src/data/brandToGeneric.json` — Static brand-to-generic mappings (~400 entries)
-- `src/components/DrugCard.jsx` — Pregnancy card with teal risk summary, accordion sections
-- `src/components/HomePage.jsx` — Hero text, common drug pills, About section
-- `src/components/Disclaimer.jsx` — FDA/DailyMed disclaimer footer
+- `src/components/DrugCard.jsx` — Main card: TGA badge (immediate) + FDA labeling (on demand) + external links
+- `src/components/TGACategoryBadge.jsx` — Colour-coded TGA category with description and safety statement
+- `src/components/ExternalLinks.jsx` — BUMPS (UK) + MotherToBaby (US) outbound links
+- `src/components/HomePage.jsx` — Hero text, common drug pills, About section (credits TGA + FDA)
+- `src/components/Disclaimer.jsx` — TGA + FDA disclaimer footer
 - `src/components/BrandBadge.jsx` — Brand/international name resolution badge
-- `src/components/SearchBar.jsx` — Sticky frosted glass header with search input
+- `src/components/SearchBar.jsx` — Sticky frosted glass header with Matria logo + search input
 - `src/components/ShareButton.jsx` — Native share / clipboard fallback
 - `src/App.jsx` — Main app: search state, result list, selection, URL sync
 - `src/main.jsx` — React entry + SW registration + cache warming
@@ -95,23 +132,30 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
   - Static assets: cache-first (precached on install)
   - Google Fonts: cache-first at runtime
   - API routes (`/api/*`, `api.fda.gov`, `rxnav.nlm.nih.gov`): network-first with cache fallback
-  - Bump `CACHE_VERSION` to invalidate caches on deploy
+  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v2`)
 - **Cache warming:** `main.jsx` prefetches 8 common pregnancy drug searches 5s after first visit (1s gap). Skipped on deep links.
 - **Manifest:** Standalone display, teal-600 theme (#0d9488)
+- **Icons:** Custom Matria branding — pregnant woman silhouette icon (192, 512, apple-touch-icon sizes) + logo with text for header
 
 ## 7. Design System
 Shared with Lactia:
 - **Palette:** Teal accents (`teal-600/500/400`), slate neutrals, `sky-900` headings (light mode), Inter font
-- **UI:** Frosted glass header (`backdrop-blur-md`), teal summary wash on DrugCard, 44px touch targets (`min-h-11`), `rounded-2xl` corners
-- **Logo:** Placeholder (uses Lactia's `logo.png` for now)
+- **UI:** Frosted glass header (`backdrop-blur-md`), 44px touch targets (`min-h-11`), `rounded-2xl` corners
+- **TGA badge colours:** Emerald (A), Amber (B1-B3), Orange (C), Red (D/X)
+- **Logo:** Custom Matria logo (`matriaLogo.png` source) and icon (`matriaIcon.png` source)
 
-## 8. Roadmap
+## 8. DrugCard Rendering Order
+1. Drug title + FDA label effective date
+2. **TGA Category Badge** (immediate, no API call) — colour-coded wash with category letter, description, safety statement, TGA attribution
+3. **"Show FDA pregnancy labeling" button** (triggers API call)
+4. **FDA Labeling section** (on demand) — "US FDA Labeling" header, Risk Summary, accordion sections (Clinical Considerations, Data, Pregnancy Exposure Registry)
+5. **External Links** — BUMPS (UK) + MotherToBaby (US) patient information leaflets
+6. **Share button**
+
+## 9. Roadmap
 
 ### Polish & Completeness
-- [ ] **Custom Matria logo** — Replace Lactia's placeholder `logo.png` with a bespoke Matria logo
 - [ ] **Rename `src/api/dailymed.js`** → `src/api/search.js` to reflect that it calls OpenFDA, not DailyMed. Update imports in `App.jsx` and `main.jsx`
-- [ ] **Init git repo** — `git init`, push to GitHub under nicutools org
-- [ ] **Update manifest description** — `manifest.json` and `index.html` meta description still say "DailyMed database"; align with OpenFDA reality
 
 ### Features
 - [ ] **Brand names on DrugCard** — Display `brandNames[]` (already returned by search proxy) as subtitle text or pill badges under the drug title, so users can confirm they found the right drug
@@ -120,7 +164,6 @@ Shared with Lactia:
 - [ ] **Recent searches** — Store last ~10 successful searches in `localStorage`. Display on HomePage below the popular drug pills (or replace them once user has history). Tap to re-search, with a clear button to reset. No backend needed
 
 ### Data Quality
-- [ ] **Pregnancy category letter extraction** — For legacy (Tier 2) labels, parse the old A/B/C/D/X category letter from `teratogenic_effects` text and display it as a prominent badge on DrugCard
 - [ ] **Better text formatting** — The raw PLLR text is often a single long block. Detect paragraph breaks, bullet points, and sub-headings in the labeling text and render with proper whitespace and structure
 
 ### Infrastructure
@@ -128,12 +171,25 @@ Shared with Lactia:
 - [ ] **Analytics** — Add privacy-respecting analytics (e.g. Cloudflare Web Analytics — single script tag, no cookies)
 - [ ] **Error monitoring** — Surface API failures and edge cases in production
 
-## 9. Development Rules for Claude Code
+## 10. Development Rules for Claude Code
+
+### Data Integrity (HIGHEST PRIORITY)
+- **Never fabricate health data.** All drug safety information must come from the TGA database (`tgaPregnancy.json`) or the FDA API. Never hard-code, guess, or invent pregnancy categories, safety statements, or risk summaries.
+- **Never suppress or alter source data.** Display TGA and FDA text exactly as provided. Do not paraphrase, simplify, or editorialize safety information.
+- **Show provenance.** Every piece of safety data must have visible source attribution (e.g., "Source: Australian TGA") so users can verify it.
+- **Show dates.** Always display the FDA label effective date so users can assess how current the information is.
+- **Prefer nothing over wrong.** If data is unavailable or uncertain, show "No data available" — never fill gaps with assumptions.
+- **Keep TGA data current.** Run `node scripts/convert-tga-csv.js` when TGA publishes updated CSV data (a few times per year). The `_meta.updated` field in `tgaPregnancy.json` tracks the data vintage.
+
+### Architecture & UI
 - **Atomic Components:** Keep UI logic separate from data fetching logic.
 - **Mobile First:** All layouts optimized for single-hand iPhone use.
-- **Safety:** Display the label effective date prominently on every drug card.
-- **Disclaimer:** FDA/DailyMed disclaimer must be visible in footer of all results.
-- **Deploy:** `npm run build && npx wrangler pages deploy dist`
+- **TGA First:** TGA data is primary (instant, static). FDA data is secondary (on demand).
+- **Disclaimer:** TGA + FDA disclaimer must be visible in footer of all results.
+
+### Deploy & Operations
+- **Deploy:** `npm run build && npx wrangler pages deploy dist --project-name matria`
 - **Local dev with functions:** `npm run build && npx wrangler pages dev dist`
+- **Bump SW cache:** Increment `CACHE_VERSION` in `public/sw.js` on every deploy to avoid stale cache issues.
 - **OpenFDA `+` operator:** Never URL-encode the `+` in OpenFDA search terms — it's the AND operator.
 - **Exact-match filtering:** Always filter OpenFDA results by exact generic_name match (salt-stripped) to exclude combo products.
