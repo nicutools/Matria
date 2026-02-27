@@ -167,6 +167,7 @@ Shared with Lactia:
 - [ ] **Better text formatting** — The raw PLLR text is often a single long block. Detect paragraph breaks, bullet points, and sub-headings in the labeling text and render with proper whitespace and structure
 
 ### Infrastructure
+- [ ] **Automated TGA data updates** — Add a GitHub Actions scheduled workflow (monthly cron) that runs `node scripts/convert-tga-csv.js`, and if `tgaPregnancy.json` changed, commits it, builds, and deploys to Cloudflare Pages. Requires adding `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as GitHub repo secrets. The conversion script already auto-discovers the latest CSV URL from the TGA website, so no code changes are needed between TGA updates.
 - [ ] **Custom domain** — Point a domain at the Cloudflare Pages deployment
 - [ ] **Analytics** — Add privacy-respecting analytics (e.g. Cloudflare Web Analytics — single script tag, no cookies)
 - [ ] **Error monitoring** — Surface API failures and edge cases in production
