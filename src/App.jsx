@@ -3,7 +3,7 @@ import SearchBar from './components/SearchBar';
 import DrugCard from './components/DrugCard';
 import BrandBadge from './components/BrandBadge';
 import Disclaimer from './components/Disclaimer';
-import HomePage from './components/HomePage';
+import HomePage, { addRecentSearch } from './components/HomePage';
 import { searchDrugs } from './api/search';
 import { resolveBrand } from './api/brandResolver';
 
@@ -101,6 +101,10 @@ function App() {
 
         setResults(data);
         setSearched(true);
+
+        if (data.length > 0) {
+          addRecentSearch(data.length === 1 ? data[0].title : query.trim());
+        }
 
         // Deep link auto-select: if came from URL and an exact match exists, select it
         if (deepLinkDrug && data.length > 1) {
@@ -233,9 +237,12 @@ function App() {
               <button
                 key={drug.title || i}
                 onClick={() => handleResultTap(i)}
-                className="w-full rounded-2xl bg-white px-4 py-3 text-left text-sm font-medium text-sky-900 shadow-sm active:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:shadow-none dark:active:bg-slate-800"
+                className={`w-full rounded-2xl bg-white px-4 py-3 text-left text-sm font-medium shadow-sm active:bg-slate-50 dark:bg-slate-900 dark:shadow-none dark:active:bg-slate-800 ${drug.hasPregnancyData === false ? 'text-slate-400 dark:text-slate-500' : 'text-sky-900 dark:text-slate-100'}`}
               >
                 {drug.title}
+                {drug.hasPregnancyData === false && (
+                  <span className="ml-2 text-xs text-slate-300 dark:text-slate-600">No FDA data</span>
+                )}
               </button>
             ))}
           </div>

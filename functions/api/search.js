@@ -119,6 +119,7 @@ export async function onRequest(context) {
       title: displayTitle,
       brandNames: cleanBrands,
       effectiveTime: g.effectiveTime,
+      hasPregnancyData: g.hasData,
     };
   });
 

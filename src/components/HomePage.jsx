@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 const POPULAR_DRUGS = [
   'Paracetamol',
   'Sertraline',
@@ -9,7 +11,42 @@ const POPULAR_DRUGS = [
   'Ibuprofen',
 ];
 
+const STORAGE_KEY = 'matria-recent-searches';
+
+export function getRecentSearches() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+export function addRecentSearch(name) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  const recent = getRecentSearches().filter(
+    (s) => s.toLowerCase() !== trimmed.toLowerCase()
+  );
+  recent.unshift(trimmed);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(recent.slice(0, 10)));
+  } catch {
+    // localStorage full or unavailable
+  }
+}
+
 export default function HomePage({ onDrugSelect }) {
+  const [recent, setRecent] = useState(getRecentSearches);
+
+  function clearRecent() {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    setRecent([]);
+  }
+
   return (
     <div className="py-8">
       <div className="text-center">
@@ -20,6 +57,33 @@ export default function HomePage({ onDrugSelect }) {
           Search any drug or brand name for pregnancy safety information from the Australian TGA and FDA.
         </p>
       </div>
+
+      {recent.length > 0 && (
+        <div className="mt-8">
+          <div className="mb-3 flex items-center justify-center gap-2">
+            <h2 className="text-center text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              Recent searches
+            </h2>
+            <button
+              onClick={clearRecent}
+              className="text-xs text-slate-300 active:text-slate-500 dark:text-slate-600 dark:active:text-slate-400"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            {recent.map((name) => (
+              <button
+                key={name}
+                onClick={() => onDrugSelect(name)}
+                className="min-h-11 rounded-full bg-white px-4 py-2.5 text-sm font-medium text-teal-600 shadow-sm ring-1 ring-teal-200 active:bg-slate-50 dark:bg-slate-900 dark:text-teal-400 dark:shadow-none dark:ring-teal-800 dark:active:bg-slate-800"
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-8">
         <h2 className="mb-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
