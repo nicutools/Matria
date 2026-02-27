@@ -1,5 +1,7 @@
 import tgaData from '../data/tgaPregnancy.json';
 
+export const TGA_UPDATED = tgaData._meta.updated;
+
 /**
  * US generic names that differ from the INN/AU names used in the TGA database.
  * Only needed for the small minority of drugs where the US name diverges.

@@ -43,7 +43,13 @@ const CATEGORY_CONFIG = {
   },
 };
 
-export default function TGACategoryBadge({ category, statement }) {
+function formatTgaDate(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+}
+
+export default function TGACategoryBadge({ category, statement, updatedDate }) {
   const config = CATEGORY_CONFIG[category];
   if (!config) return null;
 
@@ -72,7 +78,7 @@ export default function TGACategoryBadge({ category, statement }) {
       )}
 
       <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-        Source: Australian Therapeutic Goods Administration (TGA)
+        Source: Australian TGA — {formatTgaDate(updatedDate) || updatedDate}
       </p>
     </div>
   );
