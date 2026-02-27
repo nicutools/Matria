@@ -1,67 +1,5 @@
-/**
- * MotherToBaby slugs are unpredictable, so we maintain a small static map
- * of common drugs to their known fact-sheet URLs.
- */
-const MOTHER_TO_BABY_SLUGS = {
-  acetaminophen: 'acetaminophen',
-  paracetamol: 'acetaminophen',
-  acyclovir: 'acyclovir',
-  adalimumab: 'adalimumab',
-  albuterol: 'albuterol',
-  amoxicillin: 'amoxicillin',
-  aripiprazole: 'aripiprazole',
-  aspirin: 'aspirin',
-  atomoxetine: 'atomoxetine',
-  azathioprine: 'azathioprine',
-  azithromycin: 'azithromycin',
-  buprenorphine: 'buprenorphine',
-  bupropion: 'bupropion',
-  carbamazepine: 'carbamazepine',
-  cetirizine: 'cetirizine',
-  citalopram: 'citalopram',
-  clonazepam: 'clonazepam',
-  codeine: 'codeine',
-  doxycycline: 'doxycycline',
-  duloxetine: 'duloxetine',
-  escitalopram: 'escitalopram',
-  fluconazole: 'fluconazole',
-  fluoxetine: 'fluoxetine',
-  gabapentin: 'gabapentin',
-  hydroxychloroquine: 'hydroxychloroquine',
-  ibuprofen: 'ibuprofen',
-  infliximab: 'infliximab',
-  isotretinoin: 'isotretinoin',
-  lamotrigine: 'lamotrigine',
-  levetiracetam: 'levetiracetam',
-  levothyroxine: 'levothyroxine',
-  lisinopril: 'lisinopril',
-  lithium: 'lithium',
-  lorazepam: 'lorazepam',
-  metformin: 'metformin',
-  methadone: 'methadone',
-  methotrexate: 'methotrexate',
-  methylphenidate: 'methylphenidate',
-  metoprolol: 'metoprolol',
-  montelukast: 'montelukast',
-  naproxen: 'naproxen',
-  nifedipine: 'nifedipine',
-  olanzapine: 'olanzapine',
-  omeprazole: 'omeprazole',
-  ondansetron: 'ondansetron',
-  oxycodone: 'oxycodone',
-  paroxetine: 'paroxetine',
-  prednisone: 'prednisone',
-  pregabalin: 'pregabalin',
-  quetiapine: 'quetiapine',
-  sertraline: 'sertraline',
-  sumatriptan: 'sumatriptan',
-  topiramate: 'topiramate',
-  tramadol: 'tramadol',
-  'valproic acid': 'valproic-acid',
-  venlafaxine: 'venlafaxine',
-  warfarin: 'warfarin',
-  zolpidem: 'zolpidem',
-};
+import bumpsLinks from '../data/bumpsLinks.json';
+import motherToBabyLinks from '../data/motherToBabyLinks.json';
 
 /**
  * US→AU name mapping for BUMPS links (BUMPS uses INN/AU names).
@@ -73,6 +11,8 @@ const US_TO_INN = {
   epinephrine: 'adrenaline',
   norepinephrine: 'noradrenaline',
 };
+
+const bumpsSet = new Set(bumpsLinks);
 
 function ExternalLinkIcon() {
   return (
@@ -87,16 +27,25 @@ export default function ExternalLinks({ drugName }) {
 
   const key = drugName.trim().toLowerCase();
 
-  // BUMPS uses INN/AU names
+  // BUMPS uses INN/AU names — check against verified slugs
   const bumpsName = US_TO_INN[key] || key;
   const bumpsSlug = bumpsName.replace(/\s+/g, '-');
-  const bumpsUrl = `https://www.medicinesinpregnancy.org/leaflets-a-z/${bumpsSlug}/`;
+  const hasBumps = bumpsSet.has(bumpsSlug);
+  const bumpsUrl = hasBumps
+    ? `https://www.medicinesinpregnancy.org/leaflets-a-z/${bumpsSlug}/`
+    : null;
 
-  // MotherToBaby uses its own slug scheme
-  const mtbSlug = MOTHER_TO_BABY_SLUGS[key];
+  // MotherToBaby slugs often have suffixes like -pregnancy or brand names
+  // Match by exact slug or slug followed by a hyphen separator
+  const mtbDrugSlug = key.replace(/\s+/g, '-');
+  const mtbSlug = motherToBabyLinks.find(
+    (s) => s === mtbDrugSlug || s.startsWith(mtbDrugSlug + '-')
+  );
   const mtbUrl = mtbSlug
     ? `https://mothertobaby.org/fact-sheets/${mtbSlug}/`
     : null;
+
+  if (!bumpsUrl && !mtbUrl) return null;
 
   return (
     <div className="mt-4 rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
@@ -104,15 +53,17 @@ export default function ExternalLinks({ drugName }) {
         Patient Information Leaflets
       </h3>
       <div className="mt-2 flex flex-col gap-2">
-        <a
-          href={bumpsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-teal-600 active:bg-slate-100 dark:bg-slate-800 dark:text-teal-400 dark:active:bg-slate-700"
-        >
-          <ExternalLinkIcon />
-          <span>BUMPS (UK) — Medicines in Pregnancy</span>
-        </a>
+        {bumpsUrl && (
+          <a
+            href={bumpsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-h-11 items-center gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-sm font-medium text-teal-600 active:bg-slate-100 dark:bg-slate-800 dark:text-teal-400 dark:active:bg-slate-700"
+          >
+            <ExternalLinkIcon />
+            <span>BUMPS (UK) — Medicines in Pregnancy</span>
+          </a>
+        )}
         {mtbUrl && (
           <a
             href={mtbUrl}
