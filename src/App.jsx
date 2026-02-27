@@ -87,6 +87,18 @@ function App() {
         setResolution(brandResult.resolved ? brandResult : null);
 
         const { results: data } = await searchDrugs(brandResult.generic, controller.signal);
+
+        // For international name resolutions (e.g. paracetamol → acetaminophen),
+        // keep the original name as the display title since this is an AU-first app.
+        // Stash the US name as fdaName for FDA API calls.
+        if (brandResult.type === 'international') {
+          const originalTitle = brandResult.original.charAt(0).toUpperCase() + brandResult.original.slice(1).toLowerCase();
+          for (const drug of data) {
+            drug.fdaName = drug.title;
+            drug.title = originalTitle;
+          }
+        }
+
         setResults(data);
         setSearched(true);
 

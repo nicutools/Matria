@@ -41,7 +41,7 @@ export default function HomePage({ onDrugSelect }) {
       <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
         <h2 className="text-sm font-bold tracking-tight text-sky-900 dark:text-slate-100">About Matria</h2>
         <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-          Matria helps parents and healthcare providers quickly look up pregnancy safety information for medications. Data comes from the{' '}
+          Matria helps parents and healthcare providers find trustworthy medicines information for pregnancy. Data comes from the{' '}
           <a
             href="https://www.tga.gov.au/resources/publication/publications/prescribing-medicines-pregnancy-database"
             target="_blank"

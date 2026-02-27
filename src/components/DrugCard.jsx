@@ -47,7 +47,7 @@ export default function DrugCard({ drug }) {
     setError(null);
 
     try {
-      const data = await fetchPregnancy(drug.title, controller.signal);
+      const data = await fetchPregnancy(drug.fdaName || drug.title, controller.signal);
       setPregnancy(data);
     } catch (err) {
       if (err.name !== 'AbortError') {
