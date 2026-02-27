@@ -21,7 +21,8 @@
 - **Local dev with functions:** `npm run build && npx wrangler pages dev dist`
 - **Version:** 1.0.0
 - **Repo:** https://github.com/nicutools/Matria
-- **Live:** https://matria.pages.dev
+- **Live:** https://matria.nicutools.org (custom domain) / https://matria.pages.dev
+- **Analytics:** Google Analytics GA4 — `G-4R6SD5H388` (gtag in `index.html`)
 
 ## 3. Core Architecture
 
@@ -137,7 +138,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
   - Static assets: cache-first (precached on install)
   - Google Fonts: cache-first at runtime
   - API routes (`/api/*`, `api.fda.gov`, `rxnav.nlm.nih.gov`): network-first with cache fallback
-  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v5`)
+  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v7`)
 - **Cache warming:** `main.jsx` prefetches 8 common pregnancy drug searches 5s after first visit (1s gap). Skipped on deep links.
 - **Manifest:** Standalone display, teal-600 theme (#0d9488)
 - **Icons:** Custom Matria branding — pregnant woman silhouette icon (192, 512, apple-touch-icon sizes) + logo with text for header
@@ -147,7 +148,7 @@ Shared with Lactia:
 - **Palette:** Teal accents (`teal-600/500/400`), slate neutrals, `sky-900` headings (light mode), Inter font
 - **UI:** Frosted glass header (`backdrop-blur-md`), 44px touch targets (`min-h-11`), `rounded-2xl` corners
 - **TGA badge colours:** Emerald (A), Amber (B1-B3), Orange (C), Red (D/X)
-- **Logo:** Custom Matria logo (`matriaLogo.png` source) and icon (`matriaIcon.png` source)
+- **Logo:** Custom Matria logo (`matriaLogo.png` source) and icon (`matriaIcon.png` source). Separate dark mode logo (`public/logo-dark.png`) with white text and preserved terracotta silhouette. Version badge (`v1.0.0`) shown beside logo.
 
 ## 8. DrugCard Rendering Order
 1. Drug title + FDA label effective date
@@ -174,8 +175,8 @@ Shared with Lactia:
 ### Infrastructure
 - [ ] **Automated TGA data updates** — Add a GitHub Actions scheduled workflow (monthly cron) that runs `node scripts/convert-tga-csv.js`, and if `tgaPregnancy.json` changed, commits it, builds, and deploys to Cloudflare Pages. Requires adding `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as GitHub repo secrets. The conversion script already auto-discovers the latest CSV URL from the TGA website, so no code changes are needed between TGA updates.
 - [ ] **Automated external link validation** — Add `node scripts/validate-external-links.js` to the same GitHub Actions workflow (or a separate monthly cron). If `bumpsLinks.json` or `motherToBabyLinks.json` changed, commit, build, and deploy. Picks up new leaflets as either site adds them.
-- [ ] **Custom domain** — Point a domain at the Cloudflare Pages deployment
-- [ ] **Analytics** — Add privacy-respecting analytics (e.g. Cloudflare Web Analytics — single script tag, no cookies)
+- [x] **Custom domain** — `matria.nicutools.org` via Cloudflare DNS CNAME
+- [x] **Analytics** — Google Analytics GA4 (`G-4R6SD5H388`) via gtag snippet in `index.html`
 - [ ] **Error monitoring** — Surface API failures and edge cases in production
 
 ## 10. Development Rules for Claude Code
