@@ -124,10 +124,15 @@ function emptyResult() {
 }
 
 function cleanHtml(text) {
-  // Strip HTML tags that sometimes appear in OpenFDA data
+  // Convert block-level HTML elements to newlines before stripping tags
   return text
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|div|li|tr|h\d)>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '\n• ')
     .replace(/<[^>]+>/g, '')
-    .replace(/\s+/g, ' ')
+    .replace(/[ \t]+/g, ' ')          // collapse spaces within lines, preserve newlines
+    .replace(/\n{3,}/g, '\n\n')       // max one blank line between paragraphs
+    .split('\n').map(l => l.trim()).join('\n')  // trim each line
     .trim();
 }
 
@@ -141,7 +146,7 @@ function splitSubsections(fullText) {
   // actual section headings during splitting.
   cleaned = cleaned
     .replace(/\[\s*[Ss]ee\s+[^\]]*\]/g, '')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/ {2,}/g, ' ')
     .trim();
 
   // Patterns omit the i flag because actual PLLR headings are title-cased,

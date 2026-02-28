@@ -1,7 +1,7 @@
 // Matria Service Worker
 // Bump CACHE_VERSION to invalidate all caches on deploy.
 
-const CACHE_VERSION = 'v10';
+const CACHE_VERSION = 'v11';
 const STATIC_CACHE = `matria-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `matria-runtime-${CACHE_VERSION}`;
 

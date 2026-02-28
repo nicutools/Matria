@@ -4,6 +4,7 @@ import { lookupTGA, TGA_UPDATED } from '../api/tgaLookup';
 import TGACategoryBadge from './TGACategoryBadge';
 import ExternalLinks from './ExternalLinks';
 import ShareButton from './ShareButton';
+import FormattedText from './FormattedText';
 
 function formatDate(yyyymmdd) {
   if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd;
@@ -116,9 +117,7 @@ export default function DrugCard({ drug }) {
           {pregnancy.riskSummary && (
             <div className="px-4 py-3">
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Risk Summary</p>
-              <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                {pregnancy.riskSummary}
-              </p>
+              <FormattedText text={pregnancy.riskSummary} className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300" />
             </div>
           )}
 
@@ -147,9 +146,7 @@ export default function DrugCard({ drug }) {
                 {isOpen && (
                   <div className="px-4 pb-3">
                     {content && (
-                      <p className="whitespace-pre-line text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-                        {content}
-                      </p>
+                      <FormattedText text={content} className="text-sm leading-relaxed text-slate-600 dark:text-slate-400" />
                     )}
                     {hasNoContent && (
                       <p className="py-2 text-sm text-slate-400 dark:text-slate-500">No data available.</p>
