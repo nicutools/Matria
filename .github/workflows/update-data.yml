@@ -1,0 +1,73 @@
+name: Monthly Data Update
+
+on:
+  schedule:
+    # 1st of each month at 3am UTC
+    - cron: '0 3 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update TGA pregnancy data
+        run: node scripts/convert-tga-csv.js
+
+      - name: Update external links (BUMPS + MotherToBaby)
+        run: node scripts/validate-external-links.js
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No data changes detected — skipping deploy."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Data changes detected:"
+            git diff --stat
+          fi
+
+      - name: Bump SW cache version
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          # Extract current version number and increment
+          CURRENT=$(grep -oP "const CACHE_VERSION = 'v\K[0-9]+" public/sw.js)
+          NEXT=$((CURRENT + 1))
+          sed -i "s/const CACHE_VERSION = 'v${CURRENT}'/const CACHE_VERSION = 'v${NEXT}'/" public/sw.js
+          echo "Bumped CACHE_VERSION: v${CURRENT} → v${NEXT}"
+
+      - name: Commit and push
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/data/tgaPregnancy.json src/data/bumpsLinks.json src/data/motherToBabyLinks.json public/sw.js
+          git commit -m "chore: monthly data update (TGA + external links)"
+          git push
+
+      - name: Build
+        if: steps.changes.outputs.changed == 'true'
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        if: steps.changes.outputs.changed == 'true'
+        run: npx wrangler pages deploy dist --project-name matria
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

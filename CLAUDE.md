@@ -173,8 +173,8 @@ Shared with Lactia:
 - [ ] **Better text formatting** — The raw PLLR text is often a single long block. Detect paragraph breaks, bullet points, and sub-headings in the labeling text and render with proper whitespace and structure
 
 ### Infrastructure
-- [ ] **Automated TGA data updates** — Add a GitHub Actions scheduled workflow (monthly cron) that runs `node scripts/convert-tga-csv.js`, and if `tgaPregnancy.json` changed, commits it, builds, and deploys to Cloudflare Pages. Requires adding `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` as GitHub repo secrets. The conversion script already auto-discovers the latest CSV URL from the TGA website, so no code changes are needed between TGA updates.
-- [ ] **Automated external link validation** — Add `node scripts/validate-external-links.js` to the same GitHub Actions workflow (or a separate monthly cron). If `bumpsLinks.json` or `motherToBabyLinks.json` changed, commit, build, and deploy. Picks up new leaflets as either site adds them.
+- [x] **Automated TGA data updates + external link validation** — `.github/workflows/update-data.yml` runs monthly (1st at 3am UTC) + manual `workflow_dispatch`. Runs both `convert-tga-csv.js` and `validate-external-links.js`, bumps SW cache version, commits, builds, and deploys if data changed.
+- [ ] **GitHub Actions secrets** — Add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to GitHub repo secrets (Settings → Secrets → Actions), then trigger the "Monthly Data Update" workflow manually from the Actions tab to verify end-to-end.
 - [x] **Custom domain** — `matria.nicutools.org` via Cloudflare DNS CNAME
 - [x] **Analytics** — Google Analytics GA4 (`G-4R6SD5H388`) via gtag snippet in `index.html`
 - [ ] **Error monitoring** — Surface API failures and edge cases in production
