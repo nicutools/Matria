@@ -3,13 +3,16 @@ import ThemeToggle from './ThemeToggle';
 export default function SearchBar({ query, onChange, onHomeClick }) {
   return (
     <div className="sticky top-0 z-10 bg-white/80 backdrop-blur-md px-4 pt-6 pb-4 shadow-sm dark:bg-slate-900/80 dark:shadow-none">
-      <div className="flex items-start justify-between">
-        <button
-          onClick={onHomeClick}
-          className="rounded-full px-2.5 py-1 text-[13px] font-medium uppercase tracking-wider text-slate-400 active:text-slate-600 dark:text-slate-500 dark:active:text-slate-300"
-        >
-          Home
-        </button>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onHomeClick}
+            className="rounded-full px-2.5 py-1 text-[13px] font-medium uppercase tracking-wider text-slate-400 active:text-slate-600 dark:text-slate-500 dark:active:text-slate-300"
+          >
+            Home
+          </button>
+          <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">v1.0.1</span>
+        </div>
         <div className="flex items-center gap-2">
           <a href="https://lactia.nicutools.org" target="_blank" rel="noopener noreferrer"
             className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500 active:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:active:bg-slate-700">

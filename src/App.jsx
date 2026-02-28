@@ -104,9 +104,11 @@ function App() {
       setError(null);
       setSelectedIndex(null);
 
-      // Debounce recent search saving so typing "i-n-s-u-l-i-n" only saves once
-      const recentLabel = tgaHits.length === 1 ? tgaHits[0].title : trimmed;
-      recentDebounceRef.current = setTimeout(() => addRecentSearch(recentLabel), 1000);
+      // Only save recent search for single results (title is canonical);
+      // multi-result saves happen when user taps a result in handleResultTap
+      if (tgaHits.length === 1) {
+        recentDebounceRef.current = setTimeout(() => addRecentSearch(tgaHits[0].title), 1000);
+      }
 
       // Deep link auto-select
       if (deepLinkDrug && tgaHits.length > 1) {
@@ -157,8 +159,10 @@ function App() {
         setResults(data);
         setSearched(true);
 
-        if (data.length > 0) {
-          addRecentSearch(data.length === 1 ? data[0].title : trimmed);
+        // Only save recent search for single results;
+        // multi-result saves happen when user taps a result
+        if (data.length === 1) {
+          addRecentSearch(data[0].title);
         }
 
         if (deepLinkDrug && data.length > 1) {
@@ -215,6 +219,7 @@ function App() {
   function handleResultTap(i) {
     setSelectedIndex(i);
     pushDrug(results[i].title);
+    addRecentSearch(results[i].title);
   }
 
   function handleBackToList() {
