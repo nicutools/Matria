@@ -22,20 +22,44 @@ const US_TO_AU = {
 /**
  * Look up TGA pregnancy category for a drug name.
  * Tries the name as-is first (lowercase), then checks the US→AU reverse map.
+ * Falls back to prefix matching for drug families (e.g. "insulin" matches
+ * "insulin aspart", "insulin glargine", etc.).
  *
  * @param {string} drugName — generic drug name (any case)
- * @returns {{ category: string, statement?: string } | null}
+ * @returns {{ type: 'exact', category: string, statement?: string }
+ *         | { type: 'prefix', query: string, matches: Array<{name: string, category: string, statement?: string}> }
+ *         | null}
  */
 export function lookupTGA(drugName) {
   if (!drugName) return null;
 
   const key = drugName.trim().toLowerCase();
-  const entry = tgaData.data[key];
-  if (entry) return entry;
 
-  // Try US→AU name mapping
+  // Exact match
+  const entry = tgaData.data[key];
+  if (entry) return { type: 'exact', ...entry };
+
+  // Try US→AU name mapping (exact)
   const auName = US_TO_AU[key];
-  if (auName) return tgaData.data[auName] || null;
+  if (auName) {
+    const auEntry = tgaData.data[auName];
+    if (auEntry) return { type: 'exact', ...auEntry };
+  }
+
+  // Prefix match fallback — find all formulations starting with the drug name
+  const searchKey = auName || key;
+  const prefix = searchKey + ' ';
+  const matches = [];
+  for (const [name, data] of Object.entries(tgaData.data)) {
+    if (name.startsWith(prefix)) {
+      matches.push({ name, ...data });
+    }
+  }
+
+  if (matches.length > 0) {
+    matches.sort((a, b) => a.name.localeCompare(b.name));
+    return { type: 'prefix', query: searchKey, matches };
+  }
 
   return null;
 }

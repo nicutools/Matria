@@ -4,8 +4,9 @@ import DrugCard from './components/DrugCard';
 import BrandBadge from './components/BrandBadge';
 import Disclaimer from './components/Disclaimer';
 import HomePage, { addRecentSearch } from './components/HomePage';
+import { searchTGA } from './api/tgaSearch';
 import { searchDrugs } from './api/search';
-import { resolveBrand } from './api/brandResolver';
+import { resolveLocalBrand, resolveBrand } from './api/brandResolver';
 
 function getUrlDrug() {
   return new URLSearchParams(window.location.search).get('drug') || '';
@@ -34,6 +35,18 @@ function clearDrugParam(push) {
   }
 }
 
+const CATEGORY_ORDER = { A: 0, B1: 1, B2: 2, B3: 3, C: 4, D: 5, X: 6 };
+
+const CATEGORY_COLORS = {
+  A: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+  B1: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+  B2: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+  B3: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+  C: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
+  D: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+  X: 'bg-red-200 text-red-900 dark:bg-red-900/60 dark:text-red-200',
+};
+
 function App() {
   const [query, setQuery] = useState(() => getUrlDrug());
   const [results, setResults] = useState([]);
@@ -43,11 +56,14 @@ function App() {
   const [searched, setSearched] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(null);
   const debounceRef = useRef(null);
+  const recentDebounceRef = useRef(null);
   const abortRef = useRef(null);
   const isDeepLink = useRef(!!getUrlDrug());
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
+    clearTimeout(recentDebounceRef.current);
+    abortRef.current?.abort();
 
     const trimmed = query.trim();
 
@@ -56,6 +72,7 @@ function App() {
       setError(null);
       setResolution(null);
       setSearched(false);
+      setLoading(false);
       return;
     }
 
@@ -64,33 +81,66 @@ function App() {
       setError(null);
       setResolution(null);
       setSearched(false);
+      setLoading(false);
       return;
     }
 
+    const deepLinkDrug = isDeepLink.current ? getUrlDrug() : null;
+    isDeepLink.current = false;
+
+    // --- Step 1: Local brand resolution (sync, instant) ---
+    const brand = resolveLocalBrand(trimmed);
+    const searchQuery = brand ? brand.generic : trimmed;
+
+    // --- Step 2: TGA search (sync, instant) ---
+    const tgaHits = searchTGA(searchQuery);
+
+    if (tgaHits.length > 0) {
+      // TGA results — show immediately, no loading state
+      setResolution(brand || null);
+      setResults(tgaHits);
+      setSearched(true);
+      setLoading(false);
+      setError(null);
+      setSelectedIndex(null);
+
+      // Debounce recent search saving so typing "i-n-s-u-l-i-n" only saves once
+      const recentLabel = tgaHits.length === 1 ? tgaHits[0].title : trimmed;
+      recentDebounceRef.current = setTimeout(() => addRecentSearch(recentLabel), 1000);
+
+      // Deep link auto-select
+      if (deepLinkDrug && tgaHits.length > 1) {
+        const exactIdx = tgaHits.findIndex(
+          (d) => d.title.toLowerCase() === deepLinkDrug.toLowerCase()
+        );
+        if (exactIdx !== -1) setSelectedIndex(exactIdx);
+      }
+
+      // Single result: update URL
+      if (tgaHits.length === 1) replaceDrug(tgaHits[0].title);
+      return;
+    }
+
+    // --- Step 3: FDA fallback (async, debounced) ---
     setLoading(true);
     setResults([]);
     setError(null);
     setSearched(false);
     setSelectedIndex(null);
 
-    const delay = isDeepLink.current ? 0 : 350;
-    const deepLinkDrug = isDeepLink.current ? getUrlDrug() : null;
-    isDeepLink.current = false;
+    const delay = deepLinkDrug ? 0 : 350;
 
     debounceRef.current = setTimeout(async () => {
-      abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
 
       try {
         const brandResult = await resolveBrand(query, controller.signal);
-        setResolution(brandResult.resolved ? brandResult : null);
+        setResolution(brandResult.resolved ? brandResult : brand || null);
 
         const { results: data } = await searchDrugs(brandResult.generic, controller.signal);
 
-        // For international name resolutions (e.g. paracetamol → acetaminophen),
-        // keep the original name as the display title since this is an AU-first app.
-        // Stash the US name as fdaName for FDA API calls.
+        // For international name resolutions, keep original as display title
         if (brandResult.type === 'international') {
           const originalTitle = brandResult.original.charAt(0).toUpperCase() + brandResult.original.slice(1).toLowerCase();
           for (const drug of data) {
@@ -99,27 +149,26 @@ function App() {
           }
         }
 
+        // Tag as FDA source
+        for (const drug of data) {
+          drug.source = 'fda';
+        }
+
         setResults(data);
         setSearched(true);
 
         if (data.length > 0) {
-          addRecentSearch(data.length === 1 ? data[0].title : query.trim());
+          addRecentSearch(data.length === 1 ? data[0].title : trimmed);
         }
 
-        // Deep link auto-select: if came from URL and an exact match exists, select it
         if (deepLinkDrug && data.length > 1) {
           const exactIdx = data.findIndex(
             (d) => d.title.toLowerCase() === deepLinkDrug.toLowerCase()
           );
-          if (exactIdx !== -1) {
-            setSelectedIndex(exactIdx);
-          }
+          if (exactIdx !== -1) setSelectedIndex(exactIdx);
         }
 
-        // Single result: update URL without creating a history entry
-        if (data.length === 1) {
-          replaceDrug(data[0].title);
-        }
+        if (data.length === 1) replaceDrug(data[0].title);
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error('Search error:', err);
@@ -143,7 +192,6 @@ function App() {
         return;
       }
 
-      // If we already have results, try to find the drug in current results
       setQuery(drug);
       if (results.length > 0) {
         const idx = results.findIndex(
@@ -151,7 +199,6 @@ function App() {
         );
         setSelectedIndex(idx !== -1 ? idx : null);
       } else {
-        // Need a fresh search
         isDeepLink.current = true;
       }
     }
@@ -197,7 +244,7 @@ function App() {
 
         {loading && (
           <p className="py-12 text-center text-sm text-slate-400 dark:text-slate-500">
-            Searching...
+            Searching FDA database...
           </p>
         )}
 
@@ -207,7 +254,7 @@ function App() {
 
         {!loading && !error && searched && results.length === 0 && (
           <p className="py-12 text-center text-sm text-slate-400 dark:text-slate-500">
-            No results found. Try a drug or brand name (e.g. "Sertraline").
+            No results found. Try a drug or brand name (e.g. &ldquo;Sertraline&rdquo;).
           </p>
         )}
 
@@ -235,13 +282,18 @@ function App() {
             </p>
             {results.map((drug, i) => (
               <button
-                key={drug.title || i}
+                key={drug.tgaName || drug.title || i}
                 onClick={() => handleResultTap(i)}
-                className={`w-full rounded-2xl bg-white px-4 py-3 text-left text-sm font-medium shadow-sm active:bg-slate-50 dark:bg-slate-900 dark:shadow-none dark:active:bg-slate-800 ${drug.hasPregnancyData === false ? 'text-slate-400 dark:text-slate-500' : 'text-sky-900 dark:text-slate-100'}`}
+                className="flex w-full items-center gap-2.5 rounded-2xl bg-white px-4 py-3 text-left text-sm font-medium text-sky-900 shadow-sm active:bg-slate-50 dark:bg-slate-900 dark:text-slate-100 dark:shadow-none dark:active:bg-slate-800"
               >
-                {drug.title}
-                {drug.hasPregnancyData === false && (
-                  <span className="ml-2 text-xs text-slate-300 dark:text-slate-600">No FDA data</span>
+                {drug.source === 'tga' && drug.category && (
+                  <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-xs font-bold ${CATEGORY_COLORS[drug.category] || ''}`}>
+                    {drug.category}
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">{drug.title}</span>
+                {drug.source === 'fda' && drug.hasPregnancyData === false && (
+                  <span className="text-xs text-slate-300 dark:text-slate-600">No FDA data</span>
                 )}
               </button>
             ))}

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { fetchPregnancy } from '../api/pregnancy';
 import { lookupTGA, TGA_UPDATED } from '../api/tgaLookup';
+import { TGA_UPDATED as TGA_UPDATED_SEARCH } from '../api/tgaSearch';
 import TGACategoryBadge from './TGACategoryBadge';
 import ExternalLinks from './ExternalLinks';
 import ShareButton from './ShareButton';
@@ -30,7 +31,16 @@ export default function DrugCard({ drug }) {
   const abortRef = useRef(null);
   const fetchedRef = useRef(false);
 
-  const tga = lookupTGA(drug.title);
+  // TGA data: embedded for source:'tga', looked up for source:'fda'
+  const isTGA = drug.source === 'tga';
+  const tga = isTGA ? null : lookupTGA(drug.title);
+  const tgaCategory = isTGA ? drug.category : tga?.type === 'exact' ? tga.category : null;
+  const tgaStatement = isTGA ? drug.statement : tga?.type === 'exact' ? tga.statement : null;
+  const tgaDate = isTGA ? TGA_UPDATED_SEARCH : TGA_UPDATED;
+  const hasTGA = isTGA || (tga?.type === 'exact');
+
+  // Name to use for FDA API calls
+  const fdaQueryName = drug.fdaName || drug.tgaName || drug.title;
 
   useEffect(() => {
     return () => abortRef.current?.abort();
@@ -48,7 +58,7 @@ export default function DrugCard({ drug }) {
     setError(null);
 
     try {
-      const data = await fetchPregnancy(drug.fdaName || drug.title, controller.signal);
+      const data = await fetchPregnancy(fdaQueryName, controller.signal);
       setPregnancy(data);
     } catch (err) {
       if (err.name !== 'AbortError') {
@@ -76,9 +86,9 @@ export default function DrugCard({ drug }) {
         </p>
       )}
 
-      {tga && <TGACategoryBadge category={tga.category} statement={tga.statement} updatedDate={TGA_UPDATED} />}
+      {hasTGA && <TGACategoryBadge category={tgaCategory} statement={tgaStatement} updatedDate={tgaDate} />}
 
-      {!tga && (
+      {!hasTGA && (
         <p className="mt-3 text-sm text-slate-400 dark:text-slate-500">
           No Australian TGA pregnancy category found for this drug.
         </p>
@@ -167,7 +177,7 @@ export default function DrugCard({ drug }) {
         </div>
       )}
 
-      <ExternalLinks drugName={drug.title} />
+      <ExternalLinks drugName={drug.tgaName || drug.title} />
 
       <div className="mt-4 flex justify-end">
         <ShareButton drugTitle={drug.title} />

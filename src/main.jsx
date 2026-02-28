@@ -25,16 +25,18 @@ if ('serviceWorker' in navigator) {
 }
 
 async function warmCommonDrugs() {
+  // TGA search is instant (local), so warm the FDA pregnancy endpoint
+  // for common drugs that users are likely to tap "Show FDA labeling" on
   const drugs = [
-    'Paracetamol', 'Sertraline', 'Levothyroxine', 'Ondansetron',
-    'Metformin', 'Azithromycin', 'Amoxicillin', 'Ibuprofen',
+    'paracetamol', 'sertraline', 'levothyroxine', 'ondansetron',
+    'metformin', 'azithromycin', 'amoxicillin', 'ibuprofen',
   ];
 
-  const { searchDrugs } = await import('./api/search.js');
+  const { fetchPregnancy } = await import('./api/pregnancy.js');
 
   for (const drug of drugs) {
     try {
-      await searchDrugs(drug);
+      await fetchPregnancy(drug);
     } catch {
       // Silently skip failures
     }
