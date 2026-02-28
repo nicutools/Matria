@@ -19,37 +19,43 @@
 - **State Management:** React useState
 - **Deploy:** `npm run build && npx wrangler pages deploy dist --project-name matria`
 - **Local dev with functions:** `npm run build && npx wrangler pages dev dist`
-- **Version:** 1.0.0
+- **Version:** 1.0.1
 - **Repo:** https://github.com/nicutools/Matria
 - **Live:** https://matria.nicutools.org (custom domain) / https://matria.pages.dev
 - **Analytics:** Google Analytics GA4 — `G-4R6SD5H388` (gtag in `index.html`)
 
 ## 3. Core Architecture
 
-### A. Search Workflow (OpenFDA via Pages Function Proxy)
+### A. Search Workflow (TGA-Primary, FDA Fallback)
+TGA is the primary search source — results are instant with no API call. FDA is a fallback for drugs not in the TGA database.
+
 1. **User Input:** User enters a drug or brand name (e.g., "Sertraline" or "Zoloft").
-2. **Brand Resolution:** `resolveBrand()` checks local `brandToGeneric.json` (~400 mappings), then RxNorm API fallback for international generics (paracetamol → acetaminophen). `<BrandBadge>` shows resolution context.
-3. **Search Proxy:** `GET /api/search?drug_name={query}` — Cloudflare Pages Function at `functions/api/search.js`.
-4. **Server-side logic:**
-   - Queries OpenFDA: `openfda.generic_name:{q}+openfda.brand_name:{q}` (limit=100)
-   - `+` is OpenFDA's AND operator — must NOT be URL-encoded
-   - Multi-word queries use phrase matching with double quotes
-   - **Exact-match filtering:** Only keeps labels where `stripSaltForm(generic_name)` exactly equals the query (prevents combo products like "Acetaminophen And Codeine" polluting results for "Acetaminophen")
-   - Falls back to prefix match, then unfiltered if exact match removes everything
-   - **Deduplication:** Groups by salt-stripped generic name, prefers labels with pregnancy data, then most recent `effective_time`
-   - Merges brand names across grouped labels, strips salt forms from display titles
-5. **Client-side:** `src/api/search.js` fetches `/api/search` and returns `{ results }`.
-6. **Display:**
-   - **Multiple results:** Compact title list. Tap to view full card. "All results" back button.
+2. **Local Brand Resolution (sync):** `resolveLocalBrand()` checks `brandToGeneric.json` (~400 mappings). No network call. `<BrandBadge>` shows resolution context.
+3. **TGA Search (sync, instant):** `searchTGA()` in `src/api/tgaSearch.js` searches the bundled TGA database:
+   - Resolves brand names via `brandToGeneric.json`
+   - Applies US→AU name mapping (acetaminophen→paracetamol, albuterol→salbutamol, etc.)
+   - Matching: exact match → `startsWith` match (e.g., "sertra" → "sertraline") → prefix match for drug families (e.g., "insulin" → insulin aspart, insulin glargine, etc.)
+   - Builds brand name list from reverse lookup of `brandToGeneric.json`
+   - Sets `fdaName` when AU/US names differ (so DrugCard knows what name to send to the FDA API)
+   - Returns: `[{ title, tgaName, category, statement, brandNames, fdaName?, source: 'tga' }]`
+   - **No loading spinner** — results appear instantly as the user types
+4. **FDA Fallback (async, debounced):** If TGA returns 0 results, falls through to OpenFDA search after 350ms debounce:
+   - `resolveBrand()` with RxNorm API for international names
+   - `searchDrugs()` → `/api/search` OpenFDA proxy (same as before)
+   - Returns: `[{ title, brandNames, effectiveTime, hasPregnancyData, source: 'fda' }]`
+5. **Display:**
+   - **Multiple results:** Compact list with TGA category badges inline. Tap to view full card.
    - **Single result:** Full DrugCard shown directly.
-   - 3-character minimum query length with 350ms debounce.
+   - 3-character minimum query length. No debounce for TGA; 350ms debounce for FDA fallback.
+   - **Recent searches:** Debounced (1s) to prevent duplicate entries while typing.
 
 ### B. TGA Pregnancy Categories (Static, Instant)
-Shown immediately on every DrugCard without any API call:
-1. **Data:** `src/data/tgaPregnancy.json` — 1,704 drugs with category + safety statement, generated from TGA CSV.
-2. **Lookup:** `src/api/tgaLookup.js` — tries drug name as-is, then US→AU name fallback (acetaminophen→paracetamol, albuterol→salbutamol, etc.).
-3. **Display:** `TGACategoryBadge` — colour-coded wash (green/amber/orange/red) with category letter, description, and safety statement all visible without tapping.
-4. **Update:** Run `node scripts/convert-tga-csv.js` when TGA publishes updated CSV (a few times per year).
+TGA data is the primary data source — embedded directly in search results:
+1. **Data:** `src/data/tgaPregnancy.json` — ~1,700 drugs with category + safety statement, generated from TGA CSV.
+2. **Search:** `src/api/tgaSearch.js` — primary search module. Searches TGA keys with brand + US→AU resolution.
+3. **Lookup (for FDA fallback):** `src/api/tgaLookup.js` — used by DrugCard when displaying FDA-sourced results. Tries exact match, US→AU name fallback, then prefix match for drug families.
+4. **Display:** `TGACategoryBadge` — colour-coded wash (green/amber/orange/red) with category letter, description, and safety statement all visible without tapping.
+5. **Update:** Run `node scripts/convert-tga-csv.js` when TGA publishes updated CSV (a few times per year).
 
 ### C. FDA Pregnancy Labeling (OpenFDA via Pages Function Proxy)
 Secondary to TGA, loaded on demand via "Show FDA pregnancy labeling" button:
@@ -75,9 +81,9 @@ Secondary to TGA, loaded on demand via "Show FDA pregnancy labeling" button:
 - If neither link is verified for a drug, the section is hidden entirely.
 
 ### E. Name Resolution (Brand + International Generic)
-Same architecture as Lactia:
-1. **Local brand mapping:** `src/data/brandToGeneric.json` (~400 AU/UK/US brand-to-generic mappings).
-2. **RxNorm API fallback:** Resolves international generic names to US names (paracetamol → acetaminophen).
+Two-tier brand resolution in `src/api/brandResolver.js`:
+1. **`resolveLocalBrand()` (sync):** Checks `brandToGeneric.json` (~400 AU/UK/US brand-to-generic mappings). Used by TGA-primary search path for instant results.
+2. **`resolveBrand()` (async):** Same local check + RxNorm API fallback for international generics (paracetamol → acetaminophen). Used by FDA fallback path. RxNorm results are skipped if the returned name starts with the original query (prevents name-mangling like "insulin" → "insulin, regular, human").
 3. **Display:** `<BrandBadge>` shows "is a brand name for" or "is also known as".
 
 ### F. Salt Form Stripping
@@ -86,12 +92,24 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 
 ## 4. Data Schema
 
-### Search Result (from OpenFDA proxy)
+### Search Result — TGA Primary (from `searchTGA()`)
+| Field | Source | Description |
+|:---|:---|:---|
+| `title` | TGA key (title-cased) | Display name for the drug |
+| `tgaName` | TGA key (lowercase) | TGA database key |
+| `category` | TGA data | A, B1, B2, B3, C, D, or X |
+| `statement` | TGA data | Safety statement (if available) |
+| `brandNames` | Reverse lookup from `brandToGeneric.json` | Known brand names |
+| `fdaName` | AU→US reverse map | US generic name for FDA API (null if same as AU) |
+| `source` | `'tga'` | Identifies result origin |
+
+### Search Result — FDA Fallback (from OpenFDA proxy)
 | Field | Source | Description |
 |:---|:---|:---|
 | `title` | `openfda.generic_name[0]` (salt-stripped, title-cased) | Display name for the drug |
 | `brandNames` | `openfda.brand_name[]` (merged, salt-stripped, deduped) | Known brand names |
 | `effectiveTime` | `effective_time` (YYYYMMDD) | Label effective date |
+| `source` | `'fda'` | Identifies result origin |
 
 ### TGA Data (static JSON)
 | Field | Source | Description |
@@ -110,12 +128,13 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 ## 5. Key Files
 - `scripts/convert-tga-csv.js` — Downloads TGA CSV, converts to JSON (run manually when TGA updates)
 - `src/data/tgaPregnancy.json` — Static TGA pregnancy data (1,704 drugs, ~250KB)
-- `src/api/tgaLookup.js` — TGA lookup with US→AU name fallback
+- `src/api/tgaSearch.js` — **Primary search module**: searches TGA data locally with brand + US→AU resolution
+- `src/api/tgaLookup.js` — TGA lookup with US→AU name fallback + prefix matching (used by DrugCard for FDA-fallback results)
 - `src/data/brandToGeneric.json` — Static brand-to-generic mappings (~400 entries)
-- `src/api/brandResolver.js` — Brand + international name resolution
-- `src/api/search.js` — Client search wrapper (fetches `/api/search`)
+- `src/api/brandResolver.js` — `resolveLocalBrand()` (sync) + `resolveBrand()` (async with RxNorm)
+- `src/api/search.js` — Client search wrapper for FDA fallback (fetches `/api/search`)
 - `src/api/pregnancy.js` — Client pregnancy wrapper (fetches `/api/pregnancy`)
-- `functions/api/search.js` — OpenFDA search proxy: exact-match filter, salt-strip dedup, brand merging
+- `functions/api/search.js` — OpenFDA search proxy (FDA fallback): exact-match filter, salt-strip dedup, brand merging
 - `functions/api/pregnancy.js` — OpenFDA pregnancy data: 3-tier field fallback, subsection splitting, sub-heading insertion
 - `src/components/DrugCard.jsx` — Main card: TGA badge (immediate) + FDA labeling (on demand) + external links
 - `src/components/TGACategoryBadge.jsx` — Colour-coded TGA category with description and safety statement
@@ -129,7 +148,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 - `src/components/BrandBadge.jsx` — Brand/international name resolution badge
 - `src/components/SearchBar.jsx` — Sticky frosted glass header with Matria logo + search input + sister site nav (Lactia, nicutools)
 - `src/components/ShareButton.jsx` — Native share / clipboard fallback
-- `src/App.jsx` — Main app: search state, result list, selection, URL sync
+- `src/App.jsx` — Main app: TGA-primary search with FDA fallback, result list with category badges, selection, URL sync
 - `src/main.jsx` — React entry + SW registration + cache warming
 - `public/sw.js` — Service worker (cache-first static, network-first API)
 - `public/manifest.json` — PWA manifest
@@ -139,8 +158,8 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
   - Static assets: cache-first (precached on install)
   - Google Fonts: cache-first at runtime
   - API routes (`/api/*`, `api.fda.gov`, `rxnav.nlm.nih.gov`): network-first with cache fallback
-  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v12`)
-- **Cache warming:** `main.jsx` prefetches 8 common pregnancy drug searches 5s after first visit (1s gap). Skipped on deep links.
+  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v14`)
+- **Cache warming:** `main.jsx` prefetches FDA pregnancy data for 8 common drugs 5s after first visit (1s gap). TGA search is instant (local) so doesn't need warming. Skipped on deep links.
 - **Manifest:** Standalone display, teal-600 theme (#0d9488)
 - **Icons:** Custom Matria branding — pregnant woman silhouette icon (192, 512, apple-touch-icon sizes) + logo with text for header
 
@@ -149,12 +168,12 @@ Shared with Lactia:
 - **Palette:** Teal accents (`teal-600/500/400`), slate neutrals, `sky-900` headings (light mode), Inter font
 - **UI:** Frosted glass header (`backdrop-blur-md`), 44px touch targets (`min-h-11`), `rounded-2xl` corners
 - **TGA badge colours:** Emerald (A), Amber (B1-B3), Orange (C), Red (D/X)
-- **Logo:** Custom Matria logo (`matriaLogo.png` source) and icon (`matriaIcon.png` source). Separate dark mode logo (`public/logo-dark.png`) with white text and preserved terracotta silhouette. Version badge (`v1.0.0`) shown beside logo.
+- **Logo:** Custom Matria logo (`matriaLogo.png` source) and icon (`matriaIcon.png` source). Separate dark mode logo (`public/logo-dark.png`) with white text and preserved terracotta silhouette.
 
 ## 8. DrugCard Rendering Order
-1. Drug title + FDA label effective date
-2. **TGA Category Badge** (immediate, no API call) — colour-coded wash with category letter, description, safety statement, TGA attribution
-3. **"Show FDA pregnancy labeling" button** (triggers API call)
+1. Drug title + brand names subtitle
+2. **TGA Category Badge** (immediate — embedded in TGA search results, or looked up for FDA-fallback results) — colour-coded wash with category letter, description, safety statement, TGA attribution
+3. **"Show FDA pregnancy labeling" button** (triggers API call, uses `fdaName` or `tgaName` for query)
 4. **FDA Labeling section** (on demand) — "US FDA Labeling" header, Risk Summary, accordion sections (Clinical Considerations, Data, Pregnancy Exposure Registry)
 5. **External Links** — BUMPS (UK) + MotherToBaby (US) patient information leaflets
 6. **Share button**
@@ -169,6 +188,9 @@ Shared with Lactia:
 - [x] **Lactation cross-link** — "Breastfeeding safety on Lactia" link in ExternalLinks, deep-links to `https://lactia.nicutools.org/?drug={genericName}`
 - [x] **"No pregnancy data" indicator in multi-result list** — Search proxy passes `hasPregnancyData` to client. Results without FDA data are dimmed with "No FDA data" badge.
 - [x] **Recent searches** — Last 10 successful searches stored in `localStorage`. Shown on HomePage above common searches with teal ring styling and clear button.
+
+### Architecture
+- [x] **TGA-primary search** — Search uses the bundled TGA database as the primary source (instant, no API call). OpenFDA search is a fallback for drugs not in TGA. Drug families (insulin, iron, etc.) show all formulations with inline category badges. Recent search saving debounced to prevent duplicate entries.
 
 ### Data Quality
 - [x] **Better text formatting** — `cleanHtml()` in pregnancy proxy preserves newlines from block HTML elements. `insertSubHeadings()` adds line breaks before known PLLR sub-headings (Human Data, Animal Data, Maternal Adverse Reactions, etc.). `FormattedText` component renders paragraphs, bold sub-headings, and bullet lists.
