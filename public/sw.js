@@ -1,7 +1,7 @@
 // Matria Service Worker
 // Bump CACHE_VERSION to invalidate all caches on deploy.
 
-const CACHE_VERSION = 'v12';
+const CACHE_VERSION = 'v13';
 const STATIC_CACHE = `matria-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `matria-runtime-${CACHE_VERSION}`;
 
@@ -11,6 +11,9 @@ const PRECACHE_URLS = [
   '/icon-192.png',
   '/icon-512.png',
   '/logo.png',
+  '/logo-dark.png',
+  '/matria.png',
+  '/apple-touch-icon.png',
 ];
 
 // ---- INSTALL: precache app shell ----
