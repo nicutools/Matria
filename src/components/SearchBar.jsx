@@ -14,7 +14,17 @@ export default function SearchBar({ query, onChange, onHomeClick }) {
           </h1>
           <span className="mb-4 text-xs font-medium text-slate-400 dark:text-slate-500">v1.0.0</span>
         </div>
-        <ThemeToggle />
+        <div className="mt-1 flex items-center gap-2">
+          <a href="https://lactia.nicutools.org" target="_blank" rel="noopener noreferrer"
+            className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500 active:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:active:bg-slate-700">
+            Lactia
+          </a>
+          <a href="https://nicutools.org" target="_blank" rel="noopener noreferrer"
+            className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500 active:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:active:bg-slate-700">
+            nicutools
+          </a>
+          <ThemeToggle />
+        </div>
       </div>
       <input
         type="search"
