@@ -4,7 +4,7 @@ export default function FormattedText({ text, className = '' }) {
   const paragraphs = text.split(/\n{2,}/);
 
   return (
-    <div className={className}>
+    <div className={`break-words ${className}`}>
       {paragraphs.map((para, i) => {
         const lines = para.split('\n').filter(Boolean);
 

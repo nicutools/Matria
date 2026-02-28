@@ -136,6 +136,28 @@ function cleanHtml(text) {
     .trim();
 }
 
+// Known PLLR sub-headings that appear inline without line breaks.
+// Insert \n\n before them so FormattedText can render them as bold headings.
+const SUB_HEADINGS = [
+  /Human Data/,
+  /Animal Data/,
+  /Third Trimester Exposure/,
+  /First Trimester Exposure/,
+  /Disease-[Aa]ssociated [Mm]aternal and\/or [Ee]mbryo\/[Ff]etal [Rr]isk/,
+  /Maternal Adverse Reactions/,
+  /Fetal\/Neonatal [Aa]dverse [Rr]eactions/,
+  /Labor or Delivery/,
+];
+
+function insertSubHeadings(text) {
+  let result = text;
+  for (const re of SUB_HEADINGS) {
+    // Only insert newline if the heading isn't already at the start of a line
+    result = result.replace(new RegExp(`(?<!^)(?<!\\n)(${re.source})`, 'g'), '\n\n$1');
+  }
+  return result.trim();
+}
+
 function splitSubsections(fullText) {
   // Strip the leading "8.1 Pregnancy" header if present
   let cleaned = fullText.replace(/^\s*8\.1\s+Pregnancy\s*/i, '').trim();
@@ -199,7 +221,7 @@ function splitSubsections(fullText) {
     const end = next ? next.index : cleaned.length;
     const content = cleaned.slice(start, end).trim();
     if (content) {
-      result[current.key] = content;
+      result[current.key] = insertSubHeadings(content);
     }
   }
 
