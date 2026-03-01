@@ -51,7 +51,7 @@ export default function HomePage({ onDrugSelect }) {
     <div className="py-8">
       <div className="text-center">
         <h1 className="text-xl font-bold tracking-tight text-sky-900 dark:text-slate-100">
-          Evidence-based medication safety in pregnancy
+          Evidence-based medication guidance for pregnancy
         </h1>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           Search any drug or brand name for pregnancy safety information from the Australian TGA and FDA.
