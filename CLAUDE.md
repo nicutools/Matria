@@ -197,7 +197,7 @@ Shared with Lactia:
 
 ### Infrastructure
 - [x] **Automated TGA data updates + external link validation** — `.github/workflows/update-data.yml` runs monthly (1st at 3am UTC) + manual `workflow_dispatch`. Runs both `convert-tga-csv.js` and `validate-external-links.js`, bumps SW cache version, commits, builds, and deploys if data changed.
-- [ ] **GitHub Actions secrets** — Add `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to GitHub repo secrets (Settings → Secrets → Actions), then trigger the "Monthly Data Update" workflow manually from the Actions tab to verify end-to-end.
+- [x] **GitHub Actions secrets** — `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` added to GitHub repo secrets.
 - [x] **Custom domain** — `matria.nicutools.org` via Cloudflare DNS CNAME
 - [x] **Analytics** — Google Analytics GA4 (`G-4R6SD5H388`) via gtag snippet in `index.html`
 - [ ] **Error monitoring** — Surface API failures and edge cases in production
