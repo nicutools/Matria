@@ -17,6 +17,7 @@
 - **Data Sources:** TGA (static JSON) + OpenFDA API (`api.fda.gov/drug/label.json`)
 - **API Proxies:** Two Cloudflare Pages Functions proxy OpenFDA requests (CORS bypass + server-side filtering)
 - **State Management:** React useState
+- **Error Monitoring:** Sentry (`@sentry/react`) — captures unhandled errors + FDA API failures, privacy-safe (drug names stripped from URLs/breadcrumbs)
 - **Deploy:** `npm run build && npx wrangler pages deploy dist --project-name matria`
 - **Local dev with functions:** `npm run build && npx wrangler pages dev dist`
 - **Version:** 1.0.1
@@ -200,7 +201,7 @@ Shared with Lactia:
 - [x] **GitHub Actions secrets** — `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` added to GitHub repo secrets.
 - [x] **Custom domain** — `matria.nicutools.org` via Cloudflare DNS CNAME
 - [x] **Analytics** — Google Analytics GA4 (`G-4R6SD5H388`) via gtag snippet in `index.html`
-- [ ] **Error monitoring** — Surface API failures and edge cases in production
+- [x] **Error monitoring** — Sentry (`@sentry/react`) captures unhandled errors + FDA API failures. Privacy-safe: drug names stripped from URLs and breadcrumbs. ErrorBoundary fallback UI wraps app.
 
 ## 10. Development Rules for Claude Code
 

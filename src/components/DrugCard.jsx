@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import * as Sentry from '@sentry/react';
 import { fetchPregnancy } from '../api/pregnancy';
 import { lookupTGA, TGA_UPDATED } from '../api/tgaLookup';
 import { TGA_UPDATED as TGA_UPDATED_SEARCH } from '../api/tgaSearch';
@@ -62,6 +63,7 @@ export default function DrugCard({ drug }) {
       setPregnancy(data);
     } catch (err) {
       if (err.name !== 'AbortError') {
+        Sentry.captureException(err, { tags: { action: 'fda-pregnancy' } });
         fetchedRef.current = false;
         setError('Unable to load pregnancy details.');
       }

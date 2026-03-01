@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import * as Sentry from '@sentry/react';
 import SearchBar from './components/SearchBar';
 import DrugCard from './components/DrugCard';
 import BrandBadge from './components/BrandBadge';
@@ -175,7 +176,7 @@ function App() {
         if (data.length === 1) replaceDrug(data[0].title);
       } catch (err) {
         if (err.name !== 'AbortError') {
-          console.error('Search error:', err);
+          Sentry.captureException(err, { tags: { action: 'fda-search' } });
           setError('Unable to reach the FDA database. Please try again.');
         }
       } finally {
