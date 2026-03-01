@@ -202,6 +202,7 @@ Shared with Lactia:
 - [x] **Custom domain** — `matria.nicutools.org` via Cloudflare DNS CNAME
 - [x] **Analytics** — Google Analytics GA4 (`G-4R6SD5H388`) via gtag snippet in `index.html`
 - [x] **Error monitoring** — Sentry (`@sentry/react`) captures unhandled errors + FDA API failures. Privacy-safe: drug names stripped from URLs and breadcrumbs. ErrorBoundary fallback UI wraps app.
+- [ ] **Sentry alert rules** — Configure email alert in Sentry UI (Alerts → Create Rule → "When a new issue is created, send email")
 
 ## 10. Development Rules for Claude Code
 
