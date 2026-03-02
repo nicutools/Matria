@@ -38,13 +38,16 @@ function toTitleCase(str) {
 
 function lookupBrands(tgaName) {
   // Check brands under TGA name and also US equivalent
-  const brands = genericToBrands[tgaName] || [];
+  const all = new Set(genericToBrands[tgaName] || []);
   const usName = AU_TO_US[tgaName];
-  if (usName) {
-    const usBrands = genericToBrands[usName] || [];
-    return [...new Set([...brands, ...usBrands])].map(toTitleCase);
+  if (usName) (genericToBrands[usName] || []).forEach((b) => all.add(b));
+  // For compound keys like "sodium valproate (valproic acid)",
+  // also check individual words and parenthetical names
+  const words = tgaName.replace(/[()]/g, ' ').split(/\s+/);
+  for (const w of words) {
+    if (w && genericToBrands[w]) genericToBrands[w].forEach((b) => all.add(b));
   }
-  return brands.map(toTitleCase);
+  return [...all].map(toTitleCase);
 }
 
 /**
@@ -71,15 +74,19 @@ export function searchTGA(query) {
   if (exact) return [makeResult(auKey)];
 
   // 4. Prefix match (drug families: "insulin" → "insulin aspart", etc.)
-  //    and startsWith match (partial typing: "sertra" → "sertraline")
+  //    startsWith match (partial typing: "sertra" → "sertraline")
+  //    contains match (mid-name: "valproate" → "sodium valproate (valproic acid)")
   const prefixMatches = []; // "insulin " prefix (formulations)
   const startsWithMatches = []; // "sertra" prefix (partial names)
+  const containsMatches = []; // "valproate" inside name
 
   for (const name of Object.keys(tgaData.data)) {
     if (name.startsWith(auKey + ' ')) {
       prefixMatches.push(name);
     } else if (name.startsWith(auKey)) {
       startsWithMatches.push(name);
+    } else if (name.includes(' ' + auKey) || name.includes('(' + auKey)) {
+      containsMatches.push(name);
     }
   }
 
@@ -88,6 +95,9 @@ export function searchTGA(query) {
   }
   if (startsWithMatches.length > 0) {
     return startsWithMatches.sort().map(makeResult);
+  }
+  if (containsMatches.length > 0) {
+    return containsMatches.sort().map(makeResult);
   }
 
   return [];
