@@ -88,7 +88,7 @@ async function main() {
     if (!csvUrl) {
       console.error(
         'Could not auto-discover CSV URL from TGA website.\n' +
-        'Visit https://www.tga.gov.au/resources/publication/publications/prescribing-medicines-pregnancy-database\n' +
+        'Visit https://www.tga.gov.au/resources/health-professional-information-and-resources/australian-categorisation-system-prescribing-medicines-pregnancy/prescribing-medicines-pregnancy-database\n' +
         'and run: node scripts/convert-tga-csv.js --url <CSV_URL>'
       );
       process.exit(1);
@@ -142,7 +142,7 @@ async function main() {
   const output = {
     _meta: {
       source: 'Australian Therapeutic Goods Administration (TGA)',
-      url: 'https://www.tga.gov.au/resources/publication/publications/prescribing-medicines-pregnancy-database',
+      url: 'https://www.tga.gov.au/resources/health-professional-information-and-resources/australian-categorisation-system-prescribing-medicines-pregnancy/prescribing-medicines-pregnancy-database',
       csvUrl,
       updated,
       count,

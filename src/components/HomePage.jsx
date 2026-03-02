@@ -107,7 +107,7 @@ export default function HomePage({ onDrugSelect }) {
         <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
           Matria helps parents and healthcare providers find trustworthy medicines information for pregnancy. Data comes from the{' '}
           <a
-            href="https://www.tga.gov.au/resources/publication/publications/prescribing-medicines-pregnancy-database"
+            href="https://www.tga.gov.au/resources/health-professional-information-and-resources/australian-categorisation-system-prescribing-medicines-pregnancy/prescribing-medicines-pregnancy-database"
             target="_blank"
             rel="noopener noreferrer"
             className="text-teal-600 underline hover:text-teal-800 dark:text-teal-400 dark:hover:text-teal-300"

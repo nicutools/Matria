@@ -4,7 +4,7 @@ export default function Disclaimer() {
       <p>
         Data from the{' '}
         <a
-          href="https://www.tga.gov.au/resources/publication/publications/prescribing-medicines-pregnancy-database"
+          href="https://www.tga.gov.au/resources/health-professional-information-and-resources/australian-categorisation-system-prescribing-medicines-pregnancy/prescribing-medicines-pregnancy-database"
           target="_blank"
           rel="noopener noreferrer"
           className="underline hover:text-slate-600 dark:hover:text-slate-300"
