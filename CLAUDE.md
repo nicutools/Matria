@@ -35,7 +35,7 @@ TGA is the primary search source — results are instant with no API call. FDA i
 3. **TGA Search (sync, instant):** `searchTGA()` in `src/api/tgaSearch.js` searches the bundled TGA database:
    - Resolves brand names via `brandToGeneric.json`
    - Applies US→AU name mapping (acetaminophen→paracetamol, albuterol→salbutamol, etc.)
-   - Matching: exact match → `startsWith` match (e.g., "sertra" → "sertraline") → prefix match for drug families (e.g., "insulin" → insulin aspart, insulin glargine, etc.)
+   - Matching: exact match → prefix match for drug families (e.g., "insulin" → insulin aspart, insulin glargine, etc.) → `startsWith` match (e.g., "sertra" → "sertraline") → `contains` match for mid-name lookups (e.g., "valproate" → "sodium valproate (valproic acid)")
    - Builds brand name list from reverse lookup of `brandToGeneric.json`
    - Sets `fdaName` when AU/US names differ (so DrugCard knows what name to send to the FDA API)
    - Returns: `[{ title, tgaName, category, statement, brandNames, fdaName?, source: 'tga' }]`
