@@ -15,7 +15,8 @@
 - **Frontend:** React (Vite) + Tailwind CSS
 - **Hosting:** Cloudflare Pages (static assets + Pages Functions)
 - **Data Sources:** TGA (static JSON) + OpenFDA API (`api.fda.gov/drug/label.json`)
-- **API Proxies:** Two Cloudflare Pages Functions proxy OpenFDA requests (CORS bypass + server-side filtering)
+- **API Proxies:** Three Cloudflare Pages Functions — two proxy OpenFDA requests (CORS bypass + server-side filtering), one records search analytics to KV
+- **Search Analytics:** Cloudflare Workers KV (`SEARCH_COUNTS` binding) — fire-and-forget drug view counting via `/api/count`
 - **State Management:** React useState
 - **Error Monitoring:** Sentry (`@sentry/react`) — captures unhandled errors + FDA API failures, privacy-safe (drug names stripped from URLs/breadcrumbs)
 - **Deploy:** `npm run build && npx wrangler pages deploy dist --project-name matria`
@@ -137,6 +138,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 - `src/api/pregnancy.js` — Client pregnancy wrapper (fetches `/api/pregnancy`)
 - `functions/api/search.js` — OpenFDA search proxy (FDA fallback): exact-match filter, salt-strip dedup, brand merging
 - `functions/api/pregnancy.js` — OpenFDA pregnancy data: 3-tier field fallback, subsection splitting, sub-heading insertion
+- `functions/api/count.js` — KV search analytics: fire-and-forget drug view counter (`SEARCH_COUNTS` binding)
 - `src/components/DrugCard.jsx` — Main card: TGA badge (immediate) + FDA labeling (on demand) + external links
 - `src/components/TGACategoryBadge.jsx` — Colour-coded TGA category with description and safety statement
 - `scripts/validate-external-links.js` — Scrapes BUMPS + MotherToBaby index pages, writes verified slug JSON
@@ -159,7 +161,8 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
   - Static assets: cache-first (precached on install)
   - Google Fonts: cache-first at runtime
   - API routes (`/api/*`, `api.fda.gov`, `rxnav.nlm.nih.gov`): network-first with cache fallback
-  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v14`)
+  - `/api/count`: bypassed entirely (fire-and-forget analytics, no caching)
+  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v20`)
 - **Cache warming:** `main.jsx` prefetches FDA pregnancy data for 8 common drugs 5s after first visit (1s gap). TGA search is instant (local) so doesn't need warming. Skipped on deep links.
 - **Manifest:** Standalone display, teal-600 theme (#0d9488)
 - **Icons:** Custom Matria branding — pregnant woman silhouette icon (192, 512, apple-touch-icon sizes) + logo with text for header
@@ -202,6 +205,7 @@ Shared with Lactia:
 - [x] **Custom domain** — `matria.nicutools.org` via Cloudflare DNS CNAME
 - [x] **Analytics** — Google Analytics GA4 (`G-4R6SD5H388`) via gtag snippet in `index.html`
 - [x] **Error monitoring** — Sentry (`@sentry/react`) captures unhandled errors + FDA API failures. Privacy-safe: drug names stripped from URLs and breadcrumbs. ErrorBoundary fallback UI wraps app.
+- [x] **Search analytics** — KV-based drug view frequency tracking via `/api/count` endpoint. `SEARCH_COUNTS` KV namespace bound in CF dashboard. Logs all drug views (TGA + FDA) fire-and-forget from client.
 - [ ] **Sentry alert rules** — Configure email alert in Sentry UI (Alerts → Create Rule → "When a new issue is created, send email")
 
 ## 10. Development Rules for Claude Code
