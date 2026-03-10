@@ -45,6 +45,9 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') return;
 
+  // Skip analytics-only endpoint (fire-and-forget, no caching needed)
+  if (url.pathname === '/api/count') return;
+
   // Network-first for API routes (Pages Function + OpenFDA + RxNorm)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(networkFirst(request, RUNTIME_CACHE));

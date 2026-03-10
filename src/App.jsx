@@ -9,6 +9,10 @@ import { searchTGA } from './api/tgaSearch';
 import { searchDrugs } from './api/search';
 import { resolveLocalBrand, resolveBrand } from './api/brandResolver';
 
+function logDrugView(drugName) {
+  fetch(`/api/count?q=${encodeURIComponent(drugName)}`).catch(() => {});
+}
+
 function getUrlDrug() {
   return new URLSearchParams(window.location.search).get('drug') || '';
 }
@@ -108,7 +112,10 @@ function App() {
       // Only save recent search for single results (title is canonical);
       // multi-result saves happen when user taps a result in handleResultTap
       if (tgaHits.length === 1) {
-        recentDebounceRef.current = setTimeout(() => addRecentSearch(tgaHits[0].title), 1000);
+        recentDebounceRef.current = setTimeout(() => {
+          addRecentSearch(tgaHits[0].title);
+          logDrugView(tgaHits[0].title);
+        }, 1000);
       }
 
       // Deep link auto-select
@@ -164,6 +171,7 @@ function App() {
         // multi-result saves happen when user taps a result
         if (data.length === 1) {
           addRecentSearch(data[0].title);
+          logDrugView(data[0].title);
         }
 
         if (deepLinkDrug && data.length > 1) {
@@ -221,6 +229,7 @@ function App() {
     setSelectedIndex(i);
     pushDrug(results[i].title);
     addRecentSearch(results[i].title);
+    logDrugView(results[i].title);
   }
 
   function handleBackToList() {
