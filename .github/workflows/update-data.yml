@@ -5,9 +5,15 @@ on:
     # 1st of each month at 3am UTC
     - cron: '0 3 1 * *'
   workflow_dispatch:
+    inputs:
+      csv_url:
+        description: 'Optional: paste a TGA CSV URL to skip auto-discovery'
+        required: false
+        default: ''
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   update-data:
@@ -26,7 +32,14 @@ jobs:
         run: npm ci
 
       - name: Update TGA pregnancy data
-        run: node scripts/convert-tga-csv.js
+        id: tga
+        continue-on-error: true
+        run: |
+          if [ -n "${{ github.event.inputs.csv_url }}" ]; then
+            node scripts/convert-tga-csv.js --url "${{ github.event.inputs.csv_url }}"
+          else
+            node scripts/convert-tga-csv.js
+          fi
 
       - name: Update external links (BUMPS + MotherToBaby)
         run: node scripts/validate-external-links.js
@@ -57,8 +70,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/data/tgaPregnancy.json src/data/bumpsLinks.json src/data/motherToBabyLinks.json public/sw.js
-          git commit -m "chore: monthly data update (TGA + external links)"
+
+          # Build commit message based on what succeeded
+          if [ "${{ steps.tga.outcome }}" = "success" ]; then
+            MSG="chore: monthly data update (TGA + external links)"
+          else
+            MSG="chore: monthly data update (external links only — TGA update failed)"
+          fi
+
+          git add src/data/tgaPregnancy.json scripts/tga-config.json src/data/bumpsLinks.json src/data/motherToBabyLinks.json public/sw.js
+          git commit -m "$MSG" || echo "Nothing to commit"
           git push
 
       - name: Build
@@ -71,3 +92,55 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Create GitHub Issue on TGA failure
+        if: steps.tga.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check for existing open issue to avoid duplicates
+          EXISTING=$(gh issue list --label "tga-update-failed" --state open --limit 1 --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "Open issue #$EXISTING already exists — skipping."
+            exit 0
+          fi
+
+          # Ensure the label exists
+          gh label create "tga-update-failed" --color "d93f0b" --description "Automated TGA data update failed" --force
+
+          if [ "${{ steps.changes.outputs.changed }}" = "true" ]; then
+            LINKS_STATUS="Yes — external links were updated and deployed successfully."
+          else
+            LINKS_STATUS="No changes were needed."
+          fi
+
+          gh issue create \
+            --title "Monthly update: TGA data couldn't be refreshed" \
+            --label "tga-update-failed" \
+            --body "## What happened
+
+          The automated monthly check tried to download the latest pregnancy safety data from the TGA (Therapeutic Goods Administration) website, but couldn't reach it. This has happened before — the TGA website is sometimes slow or blocks automated requests.
+
+          ## Did anything else update?
+
+          ${LINKS_STATUS}
+
+          ## What does this mean?
+
+          **The app is still working fine.** It's just using the previous month's TGA data, which is almost certainly still current — the TGA only updates this data a few times per year.
+
+          ## How to fix it
+
+          1. **Visit the TGA page:** [Prescribing Medicines in Pregnancy Database](https://www.tga.gov.au/resources/health-professional-information-and-resources/australian-categorisation-system-prescribing-medicines-pregnancy/prescribing-medicines-pregnancy-database)
+          2. **Find the CSV download link** on that page (it's usually a link ending in .csv)
+          3. **Copy the link address** (right-click the link, then Copy link address)
+          4. **Re-run the workflow with the URL:**
+             - Go to [Run Workflow](https://github.com/nicutools/Matria/actions/workflows/update-data.yml)
+             - Click the **Run workflow** button
+             - Paste the CSV URL into the text field
+             - Click the green **Run workflow** button
+
+          ## If the TGA page looks different or broken
+
+          The TGA occasionally restructures their website. If the page above doesn't have a CSV download link anymore, the discovery script may need updating. Open a separate issue or ask Claude Code for help."
