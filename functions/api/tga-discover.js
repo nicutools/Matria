@@ -1,14 +1,20 @@
 const TGA_PAGE = 'https://www.tga.gov.au/resources/health-professional-information-and-resources/australian-categorisation-system-prescribing-medicines-pregnancy/prescribing-medicines-pregnancy-database';
 const TGA_BASE = 'https://www.tga.gov.au';
 
-export async function onRequest() {
+export async function onRequest({ request }) {
+  const url = new URL(request.url);
+  if (url.searchParams.get('ping') === '1') {
+    return Response.json({ ok: true });
+  }
+
   try {
+    // Use Cloudflare's fetch with cf options to avoid edge caching issues
     const res = await fetch(TGA_PAGE, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; Matria/1.0; +https://matria.nicutools.org)',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       },
-      signal: AbortSignal.timeout(30000),
+      cf: { cacheTtl: 0, cacheEverything: false },
     });
 
     if (!res.ok) {
