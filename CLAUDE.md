@@ -128,7 +128,8 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 | `pregnancyRegistry` | Subsection of `pregnancy` (PLLR only) | Exposure registry info |
 
 ## 5. Key Files
-- `scripts/convert-tga-csv.js` — Downloads TGA CSV, converts to JSON (run manually when TGA updates)
+- `scripts/convert-tga-csv.js` — Downloads TGA CSV, converts to JSON. Uses fallback chain: Cloudflare proxy → last known URL → direct TGA scrape
+- `scripts/tga-config.json` — Last known working TGA CSV URL, auto-updated by convert script on success
 - `src/data/tgaPregnancy.json` — Static TGA pregnancy data (1,704 drugs, ~250KB)
 - `src/api/tgaSearch.js` — **Primary search module**: searches TGA data locally with brand + US→AU resolution
 - `src/api/tgaLookup.js` — TGA lookup with US→AU name fallback + prefix matching (used by DrugCard for FDA-fallback results)
@@ -139,6 +140,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 - `functions/api/search.js` — OpenFDA search proxy (FDA fallback): exact-match filter, salt-strip dedup, brand merging
 - `functions/api/pregnancy.js` — OpenFDA pregnancy data: 3-tier field fallback, subsection splitting, sub-heading insertion
 - `functions/api/count.js` — KV search analytics: fire-and-forget drug view counter (`SEARCH_COUNTS` binding)
+- `functions/api/tga-discover.js` — Cloudflare edge proxy for TGA CSV URL discovery (used by GitHub Actions workflow; currently blocked by Akamai WAF)
 - `src/components/DrugCard.jsx` — Main card: TGA badge (immediate) + FDA labeling (on demand) + external links
 - `src/components/TGACategoryBadge.jsx` — Colour-coded TGA category with description and safety statement
 - `scripts/validate-external-links.js` — Scrapes BUMPS + MotherToBaby index pages, writes verified slug JSON
@@ -206,7 +208,8 @@ Shared with Lactia:
 - [x] **Analytics** — Google Analytics GA4 (`G-4R6SD5H388`) via gtag snippet in `index.html`
 - [x] **Error monitoring** — Sentry (`@sentry/react`) captures unhandled errors + FDA API failures. Privacy-safe: drug names stripped from URLs and breadcrumbs. ErrorBoundary fallback UI wraps app.
 - [x] **Search analytics** — KV-based drug view frequency tracking via `/api/count` endpoint. `SEARCH_COUNTS` KV namespace bound in CF dashboard. Logs all drug views (TGA + FDA) fire-and-forget from client.
-- [ ] **Sentry alert rules** — Configure email alert in Sentry UI (Alerts → Create Rule → "When a new issue is created, send email")
+- [x] **Sentry alert rules** — Configure email alert in Sentry UI (Alerts → Create Rule → "When a new issue is created, send email")
+- [x] **TGA workflow resilience** — Self-healing fallback chain (Cloudflare proxy → last known URL → direct scrape), non-blocking workflow with friendly GitHub Issue on failure, manual CSV URL input for recovery
 
 ## 10. Development Rules for Claude Code
 
