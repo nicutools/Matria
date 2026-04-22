@@ -25,11 +25,6 @@ const TGA_PAGE = '/resources/health-professional-information-and-resources/austr
 const CF_DISCOVER = 'https://matria.nicutools.org/api/tga-discover';
 const CONFIG_PATH = resolve(__dirname, 'tga-config.json');
 
-const BROWSER_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (compatible; Matria/1.0; +https://matria.nicutools.org)',
-  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-};
-
 // Diagnostics collected during fallback chain
 const diagnostics = [];
 
@@ -87,7 +82,6 @@ async function discoverViaLastKnown() {
   try {
     const res = await fetch(url, {
       method: 'HEAD',
-      headers: BROWSER_HEADERS,
       signal: AbortSignal.timeout(30000),
     });
     const ms = Date.now() - start;
@@ -111,7 +105,6 @@ async function discoverViaDirect() {
   const start = Date.now();
   try {
     const res = await fetch(pageUrl, {
-      headers: BROWSER_HEADERS,
       signal: AbortSignal.timeout(90000),
     });
     const ms = Date.now() - start;
