@@ -13,7 +13,7 @@
  * so no code changes are needed between TGA updates.
  */
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,36 +21,127 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_PATH = resolve(__dirname, '../src/data/tgaPregnancy.json');
 
 const TGA_BASE = 'https://www.tga.gov.au';
+const TGA_PAGE = '/resources/health-professional-information-and-resources/australian-categorisation-system-prescribing-medicines-pregnancy/prescribing-medicines-pregnancy-database';
+const CF_DISCOVER = 'https://matria.nicutools.org/api/tga-discover';
+const CONFIG_PATH = resolve(__dirname, 'tga-config.json');
 
-// Pages known to contain a direct CSV download link (ordered by preference)
-const DISCOVERY_PAGES = [
-  '/resources/health-professional-information-and-resources/australian-categorisation-system-prescribing-medicines-pregnancy/prescribing-medicines-pregnancy-database',
-  '/table/medicines-pregnancy-current-database-web',
-];
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (compatible; Matria/1.0; +https://matria.nicutools.org)',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+};
+
+// Diagnostics collected during fallback chain
+const diagnostics = [];
+
+function logStep(step, ok, detail) {
+  const entry = `[${step}] ${ok ? 'OK' : 'FAIL'}: ${detail}`;
+  console.log(entry);
+  diagnostics.push(entry);
+}
 
 /**
- * Fetches TGA pages and extracts the first .csv link found.
- * Returns the full URL or null.
+ * Step 1: Ask our Cloudflare edge proxy to discover the CSV URL.
  */
-async function discoverCsvUrl() {
-  for (const path of DISCOVERY_PAGES) {
-    const pageUrl = TGA_BASE + path;
-    console.log(`Checking ${pageUrl} ...`);
-    try {
-      const res = await fetch(pageUrl, { signal: AbortSignal.timeout(30000) });
-      if (!res.ok) continue;
-      const html = await res.text();
-      const match = html.match(/["']([^"']*\.csv[^"']*?)["']/i);
-      if (match) {
-        const csvPath = match[1];
-        const csvUrl = csvPath.startsWith('http') ? csvPath : TGA_BASE + csvPath;
-        return csvUrl;
-      }
-    } catch {
-      // Page timed out or failed — try next
+async function discoverViaCloudflare() {
+  const start = Date.now();
+  try {
+    const res = await fetch(CF_DISCOVER, { signal: AbortSignal.timeout(30000) });
+    const ms = Date.now() - start;
+    if (!res.ok) {
+      logStep('Cloudflare', false, `HTTP ${res.status} (${ms}ms)`);
+      return null;
     }
+    const json = await res.json();
+    if (!json.found) {
+      logStep('Cloudflare', false, `${json.error} (${ms}ms)`);
+      return null;
+    }
+    logStep('Cloudflare', true, `${json.csvUrl} (${ms}ms)`);
+    return json.csvUrl;
+  } catch (err) {
+    logStep('Cloudflare', false, `${err.message} (${Date.now() - start}ms)`);
+    return null;
   }
-  return null;
+}
+
+/**
+ * Step 2: Try the last known CSV URL from tga-config.json via HEAD request.
+ */
+async function discoverViaLastKnown() {
+  let config;
+  try {
+    const raw = readFileSync(CONFIG_PATH, 'utf-8');
+    config = JSON.parse(raw);
+  } catch {
+    logStep('LastKnown', false, 'Could not read tga-config.json');
+    return null;
+  }
+
+  const url = config.lastKnownCsvUrl;
+  if (!url) {
+    logStep('LastKnown', false, 'No URL in tga-config.json');
+    return null;
+  }
+
+  const start = Date.now();
+  try {
+    const res = await fetch(url, {
+      method: 'HEAD',
+      headers: BROWSER_HEADERS,
+      signal: AbortSignal.timeout(30000),
+    });
+    const ms = Date.now() - start;
+    if (res.ok) {
+      logStep('LastKnown', true, `${url} (${ms}ms)`);
+      return url;
+    }
+    logStep('LastKnown', false, `HTTP ${res.status} for ${url} (${ms}ms)`);
+    return null;
+  } catch (err) {
+    logStep('LastKnown', false, `${err.message} (${Date.now() - start}ms)`);
+    return null;
+  }
+}
+
+/**
+ * Step 3: Scrape the TGA page directly (last resort).
+ */
+async function discoverViaDirect() {
+  const pageUrl = TGA_BASE + TGA_PAGE;
+  const start = Date.now();
+  try {
+    const res = await fetch(pageUrl, {
+      headers: BROWSER_HEADERS,
+      signal: AbortSignal.timeout(90000),
+    });
+    const ms = Date.now() - start;
+    if (!res.ok) {
+      logStep('Direct', false, `HTTP ${res.status} for ${pageUrl} (${ms}ms)`);
+      return null;
+    }
+    const html = await res.text();
+    const match = html.match(/["']([^"']*\.csv[^"']*?)["']/i);
+    if (!match) {
+      logStep('Direct', false, `No CSV link on page (${ms}ms)`);
+      return null;
+    }
+    const csvPath = match[1];
+    const csvUrl = csvPath.startsWith('http') ? csvPath : TGA_BASE + csvPath;
+    logStep('Direct', true, `${csvUrl} (${ms}ms)`);
+    return csvUrl;
+  } catch (err) {
+    logStep('Direct', false, `${err.message} (${Date.now() - start}ms)`);
+    return null;
+  }
+}
+
+/**
+ * Saves a working CSV URL back to tga-config.json.
+ */
+function saveConfig(csvUrl, updated) {
+  const config = { lastKnownCsvUrl: csvUrl, lastUpdated: updated };
+  writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n', 'utf-8');
+  console.log(`Saved ${csvUrl} to tga-config.json`);
 }
 
 /**
@@ -83,17 +174,22 @@ async function main() {
   if (csvUrl) {
     console.log(`Using provided URL: ${csvUrl}`);
   } else {
-    console.log('Auto-discovering latest TGA CSV...');
-    csvUrl = await discoverCsvUrl();
+    console.log('Discovering TGA CSV URL...');
+
+    // Fallback chain: Cloudflare → last known → direct scrape
+    csvUrl = await discoverViaCloudflare();
+    if (!csvUrl) csvUrl = await discoverViaLastKnown();
+    if (!csvUrl) csvUrl = await discoverViaDirect();
+
     if (!csvUrl) {
+      console.error('\nAll discovery methods failed:\n' + diagnostics.join('\n'));
       console.error(
-        'Could not auto-discover CSV URL from TGA website.\n' +
-        'Visit https://www.tga.gov.au/resources/health-professional-information-and-resources/australian-categorisation-system-prescribing-medicines-pregnancy/prescribing-medicines-pregnancy-database\n' +
-        'and run: node scripts/convert-tga-csv.js --url <CSV_URL>'
+        '\nManual fix: visit the TGA page, find the CSV link, and run:\n' +
+        '  node scripts/convert-tga-csv.js --url <CSV_URL>\n' +
+        'Or re-run the GitHub workflow with the CSV URL input.'
       );
       process.exit(1);
     }
-    console.log(`Found: ${csvUrl}`);
   }
 
   const updated = extractDateFromUrl(csvUrl);
@@ -138,6 +234,9 @@ async function main() {
     data[name] = entry;
     count++;
   }
+
+  // Save working URL to config for future fallback
+  saveConfig(csvUrl, updated);
 
   const output = {
     _meta: {
