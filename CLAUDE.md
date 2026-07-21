@@ -8,7 +8,7 @@
 **CRITICAL — Accuracy & Currency:** This app provides health information that directly affects clinical decisions for pregnant women and their unborn children. Inaccurate, outdated, or fabricated information can cause real harm. Every piece of data shown to users must be traceable to an authoritative source (TGA, FDA). Never invent, guess, or hallucinate drug safety data. Never hard-code safety statements or category ratings in UI code — always source them from the TGA database or FDA API. When in doubt, show nothing rather than show something wrong. Display dates and source attribution so users can assess currency themselves.
 
 **Data Sources:**
-- **Australian TGA** — Pregnancy categories (A/B1/B2/B3/C/D/X) and safety statements for 1,704 drugs. Static JSON bundled in the app, updated by running `node scripts/convert-tga-csv.js` when TGA publishes new data.
+- **Australian TGA** — Pregnancy categories (A/B1/B2/B3/C/D/X) and safety statements for 1,765 drugs (TGA database dated 2026-05-19). Static JSON bundled in the app, updated by running `node scripts/convert-tga-csv.js` when TGA publishes new data.
 - **OpenFDA Drug Label API** — Detailed US FDA pregnancy labeling (PLLR Section 8.1) fetched on demand via Pages Function proxies.
 
 ## 2. Technology Stack
@@ -53,7 +53,7 @@ TGA is the primary search source — results are instant with no API call. FDA i
 
 ### B. TGA Pregnancy Categories (Static, Instant)
 TGA data is the primary data source — embedded directly in search results:
-1. **Data:** `src/data/tgaPregnancy.json` — ~1,700 drugs with category + safety statement, generated from TGA CSV.
+1. **Data:** `src/data/tgaPregnancy.json` — ~1,765 drugs with category + safety statement, generated from TGA CSV.
 2. **Search:** `src/api/tgaSearch.js` — primary search module. Searches TGA keys with brand + US→AU resolution.
 3. **Lookup (for FDA fallback):** `src/api/tgaLookup.js` — used by DrugCard when displaying FDA-sourced results. Tries exact match, US→AU name fallback, then prefix match for drug families.
 4. **Display:** `TGACategoryBadge` — colour-coded wash (green/amber/orange/red) with category letter, description, and safety statement all visible without tapping.
@@ -117,7 +117,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 | Field | Source | Description |
 |:---|:---|:---|
 | `category` | TGA CSV | A, B1, B2, B3, C, D, or X |
-| `statement` | TGA CSV | Safety statement (740 of 1,704 drugs have one) |
+| `statement` | TGA CSV | Safety statement (774 drugs have one) |
 
 ### FDA Pregnancy Data (from OpenFDA proxy)
 | Field | Source | Description |
@@ -130,7 +130,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 ## 5. Key Files
 - `scripts/convert-tga-csv.js` — Downloads TGA CSV, converts to JSON. Discovery order: **direct scrape (fresh, retried 3×) → Cloudflare proxy → last-known URL**. Fresh discovery MUST run first — old TGA CSVs never 404, so a last-known HEAD check always succeeds and would otherwise pin stale data forever. A genuine fall-back to last-known exits non-zero so the workflow opens an alert issue instead of silently serving stale data.
 - `scripts/tga-config.json` — Last known working TGA CSV URL, auto-updated by convert script on success
-- `src/data/tgaPregnancy.json` — Static TGA pregnancy data (1,704 drugs, ~250KB)
+- `src/data/tgaPregnancy.json` — Static TGA pregnancy data (1,765 drugs, ~251KB, dated 2026-05-19)
 - `src/api/tgaSearch.js` — **Primary search module**: searches TGA data locally with brand + US→AU resolution
 - `src/api/tgaLookup.js` — TGA lookup with US→AU name fallback + prefix matching (used by DrugCard for FDA-fallback results)
 - `src/data/brandToGeneric.json` — Static brand-to-generic mappings (~400 entries)
@@ -140,7 +140,9 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 - `functions/api/search.js` — OpenFDA search proxy (FDA fallback): exact-match filter, salt-strip dedup, brand merging
 - `functions/api/pregnancy.js` — OpenFDA pregnancy data: 3-tier field fallback, subsection splitting, sub-heading insertion
 - `functions/api/count.js` — KV search analytics: fire-and-forget drug view counter (`SEARCH_COUNTS` binding)
-- `functions/api/tga-discover.js` — Cloudflare edge proxy for TGA CSV URL discovery (used by GitHub Actions workflow; currently blocked by Akamai WAF)
+- `functions/api/tga-discover.js` — Cloudflare edge proxy for TGA CSV URL discovery (middle fallback in the convert script; CF Workers can't reach TGA — returns 502 — so effectively dead weight, kept only in case CF's WAF situation changes)
+- `.github/workflows/update-data.yml` — Monthly (1st, 3am UTC) + manual `workflow_dispatch` (with optional CSV URL input): runs `convert-tga-csv.js` + `validate-external-links.js`, bumps SW cache, commits, builds, deploys if data changed; opens a friendly GitHub Issue if TGA discovery fails
+- `.github/workflows/keepalive.yml` — Empty `[skip ci]` commit on the 1st & 22nd of each month to reset GitHub's 60-day scheduled-workflow inactivity clock, so `update-data.yml` is never auto-disabled during quiet stretches. Self-sustaining; no third-party actions
 - `src/components/DrugCard.jsx` — Main card: TGA badge (immediate) + FDA labeling (on demand) + external links
 - `src/components/TGACategoryBadge.jsx` — Colour-coded TGA category with description and safety statement
 - `scripts/validate-external-links.js` — Scrapes BUMPS + MotherToBaby index pages, writes verified slug JSON
@@ -164,7 +166,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
   - Google Fonts: cache-first at runtime
   - API routes (`/api/*`, `api.fda.gov`, `rxnav.nlm.nih.gov`): network-first with cache fallback
   - `/api/count`: bypassed entirely (fire-and-forget analytics, no caching)
-  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v20`)
+  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v25`)
 - **Cache warming:** `main.jsx` prefetches FDA pregnancy data for 8 common drugs 5s after first visit (1s gap). TGA search is instant (local) so doesn't need warming. Skipped on deep links.
 - **Manifest:** Standalone display, teal-600 theme (#0d9488)
 - **Icons:** Custom Matria branding — pregnant woman silhouette icon (192, 512, apple-touch-icon sizes) + logo with text for header
