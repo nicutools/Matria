@@ -98,34 +98,52 @@ async function discoverViaLastKnown() {
 }
 
 /**
- * Step 3: Scrape the TGA page directly (last resort).
+ * Fresh discovery: scrape the TGA page for the current CSV link.
+ *
+ * This is the ONLY method that finds newly-published CSVs, so it runs first.
+ * Plain fetch() with no browser-like headers — Akamai's WAF blocks requests
+ * that look like a browser but come from a non-browser IP (see CLAUDE.md).
+ * Retried a few times so a transient throttle doesn't cause a false fallback
+ * to stale last-known data.
  */
 async function discoverViaDirect() {
   const pageUrl = TGA_BASE + TGA_PAGE;
-  const start = Date.now();
-  try {
-    const res = await fetch(pageUrl, {
-      signal: AbortSignal.timeout(90000),
-    });
-    const ms = Date.now() - start;
-    if (!res.ok) {
-      logStep('Direct', false, `HTTP ${res.status} for ${pageUrl} (${ms}ms)`);
-      return null;
+  const MAX_ATTEMPTS = 3;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const start = Date.now();
+    try {
+      const res = await fetch(pageUrl, {
+        signal: AbortSignal.timeout(90000),
+      });
+      const ms = Date.now() - start;
+      if (!res.ok) {
+        logStep('Direct', false, `HTTP ${res.status} for ${pageUrl} (attempt ${attempt}/${MAX_ATTEMPTS}, ${ms}ms)`);
+      } else {
+        const html = await res.text();
+        // Match the pregnancy-database CSV specifically, so an unrelated CSV
+        // elsewhere on the page can never be picked up by accident.
+        const match =
+          html.match(/["']([^"']*pregnancy[^"']*\.csv[^"']*?)["']/i) ||
+          html.match(/["']([^"']*\.csv[^"']*?)["']/i);
+        if (!match) {
+          logStep('Direct', false, `No CSV link on page (attempt ${attempt}/${MAX_ATTEMPTS}, ${ms}ms)`);
+        } else {
+          const csvPath = match[1];
+          const csvUrl = csvPath.startsWith('http') ? csvPath : TGA_BASE + csvPath;
+          logStep('Direct', true, `${csvUrl} (${ms}ms)`);
+          return csvUrl;
+        }
+      }
+    } catch (err) {
+      logStep('Direct', false, `${err.message} (attempt ${attempt}/${MAX_ATTEMPTS}, ${Date.now() - start}ms)`);
     }
-    const html = await res.text();
-    const match = html.match(/["']([^"']*\.csv[^"']*?)["']/i);
-    if (!match) {
-      logStep('Direct', false, `No CSV link on page (${ms}ms)`);
-      return null;
+    // Linear backoff between attempts (skip after the last one).
+    if (attempt < MAX_ATTEMPTS) {
+      await new Promise((r) => setTimeout(r, attempt * 2000));
     }
-    const csvPath = match[1];
-    const csvUrl = csvPath.startsWith('http') ? csvPath : TGA_BASE + csvPath;
-    logStep('Direct', true, `${csvUrl} (${ms}ms)`);
-    return csvUrl;
-  } catch (err) {
-    logStep('Direct', false, `${err.message} (${Date.now() - start}ms)`);
-    return null;
   }
+  return null;
 }
 
 /**
@@ -164,15 +182,27 @@ async function main() {
   const urlArgIdx = process.argv.indexOf('--url');
   let csvUrl = urlArgIdx !== -1 ? process.argv[urlArgIdx + 1] : null;
 
+  // Tracks whether we could freshly discover the current CSV, or had to fall
+  // back to the last-known URL (which may be stale — old TGA CSVs never 404,
+  // so a live last-known URL is NOT evidence that it's still the newest one).
+  let staleFallback = false;
+
   if (csvUrl) {
     console.log(`Using provided URL: ${csvUrl}`);
   } else {
     console.log('Discovering TGA CSV URL...');
 
-    // Fallback chain: Cloudflare → last known → direct scrape
-    csvUrl = await discoverViaCloudflare();
-    if (!csvUrl) csvUrl = await discoverViaLastKnown();
-    if (!csvUrl) csvUrl = await discoverViaDirect();
+    // Fresh discovery FIRST — only the direct scrape (and, in theory, the
+    // Cloudflare proxy) can surface a newly-published CSV. The last-known URL
+    // is a genuine last resort: it keeps the build alive when TGA is
+    // unreachable, but it can never advance the data, so it must not pre-empt
+    // fresh discovery.
+    csvUrl = await discoverViaDirect();
+    if (!csvUrl) csvUrl = await discoverViaCloudflare();
+    if (!csvUrl) {
+      csvUrl = await discoverViaLastKnown();
+      staleFallback = !!csvUrl;
+    }
 
     if (!csvUrl) {
       console.error('\nAll discovery methods failed:\n' + diagnostics.join('\n'));
@@ -180,6 +210,22 @@ async function main() {
         '\nManual fix: visit the TGA page, find the CSV link, and run:\n' +
         '  node scripts/convert-tga-csv.js --url <CSV_URL>\n' +
         'Or re-run the GitHub workflow with the CSV URL input.'
+      );
+      process.exit(1);
+    }
+
+    if (staleFallback) {
+      // Fresh discovery failed and we fell back to the last-known URL. The
+      // bundled data is left untouched (it already reflects this URL) and we
+      // exit non-zero so the workflow's failure path opens a GitHub Issue —
+      // rather than silently pinning stale data behind a green checkmark,
+      // which is exactly how a 5-month staleness went unnoticed before.
+      console.error(
+        '\n⚠️  Could not freshly discover the TGA CSV — fell back to the last-known URL:\n' +
+        `  ${csvUrl}\n` +
+        'The bundled data was NOT updated and may be stale. Someone should check\n' +
+        'the TGA page and, if a newer CSV exists, re-run with --url <CSV_URL>.\n\n' +
+        'Discovery diagnostics:\n' + diagnostics.join('\n')
       );
       process.exit(1);
     }
