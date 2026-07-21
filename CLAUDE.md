@@ -128,7 +128,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 | `pregnancyRegistry` | Subsection of `pregnancy` (PLLR only) | Exposure registry info |
 
 ## 5. Key Files
-- `scripts/convert-tga-csv.js` — Downloads TGA CSV, converts to JSON. Uses fallback chain: Cloudflare proxy → last known URL → direct TGA scrape
+- `scripts/convert-tga-csv.js` — Downloads TGA CSV, converts to JSON. Discovery order: **direct scrape (fresh, retried 3×) → Cloudflare proxy → last-known URL**. Fresh discovery MUST run first — old TGA CSVs never 404, so a last-known HEAD check always succeeds and would otherwise pin stale data forever. A genuine fall-back to last-known exits non-zero so the workflow opens an alert issue instead of silently serving stale data.
 - `scripts/tga-config.json` — Last known working TGA CSV URL, auto-updated by convert script on success
 - `src/data/tgaPregnancy.json` — Static TGA pregnancy data (1,704 drugs, ~250KB)
 - `src/api/tgaSearch.js` — **Primary search module**: searches TGA data locally with brand + US→AU resolution
