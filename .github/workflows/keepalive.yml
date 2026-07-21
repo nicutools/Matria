@@ -1,0 +1,46 @@
+name: Keepalive
+
+# GitHub auto-disables scheduled workflows after 60 days of repository
+# inactivity (no commits). The "Monthly Data Update" workflow only commits
+# when TGA/link data actually changes, so during quiet stretches the repo
+# looks inactive and the scheduler gets disabled — which then silently stops
+# the data updates too.
+#
+# This job pushes a tiny empty commit on a cadence well under 60 days, which
+# resets the inactivity clock for ALL scheduled workflows. Because it commits,
+# it also keeps ITSELF enabled — the mechanism is self-sustaining.
+#
+# The commit is empty and tagged [skip ci]; there are no push-triggered
+# workflows in this repo, so it deploys nothing and costs nothing.
+
+on:
+  schedule:
+    # 1st and 22nd of each month at 4am UTC — max ~21 days between runs, so
+    # even a couple of GitHub-dropped scheduled runs stays well under 60 days.
+    - cron: '0 4 1,22 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Never let two keepalive runs push at once.
+concurrency:
+  group: keepalive
+  cancel-in-progress: false
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Push empty keepalive commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "chore: keepalive — reset scheduled-workflow inactivity clock [skip ci]"
+          # Rebase on anything pushed since checkout (e.g. the monthly data
+          # job) before pushing, so a race can't reject the push.
+          git pull --rebase --autostash origin main || true
+          git push

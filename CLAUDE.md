@@ -209,7 +209,8 @@ Shared with Lactia:
 - [x] **Error monitoring** — Sentry (`@sentry/react`) captures unhandled errors + FDA API failures. Privacy-safe: drug names stripped from URLs and breadcrumbs. ErrorBoundary fallback UI wraps app.
 - [x] **Search analytics** — KV-based drug view frequency tracking via `/api/count` endpoint. `SEARCH_COUNTS` KV namespace bound in CF dashboard. Logs all drug views (TGA + FDA) fire-and-forget from client.
 - [x] **Sentry alert rules** — Configure email alert in Sentry UI (Alerts → Create Rule → "When a new issue is created, send email")
-- [x] **TGA workflow resilience** — Self-healing fallback chain (Cloudflare proxy → last known URL → direct scrape), non-blocking workflow with friendly GitHub Issue on failure, manual CSV URL input for recovery
+- [x] **TGA workflow resilience** — Self-healing fallback chain (direct scrape → Cloudflare proxy → last-known URL; fresh-first so stale data can't be pinned), non-blocking workflow with friendly GitHub Issue on failure, manual CSV URL input for recovery
+- [x] **Keepalive workflow** — `.github/workflows/keepalive.yml` pushes an empty `[skip ci]` commit on the 1st & 22nd of each month, resetting GitHub's 60-day scheduled-workflow inactivity clock so the monthly data update never gets auto-disabled during quiet stretches. Self-sustaining (its own commits keep it enabled too); no third-party actions.
 
 ## 10. Development Rules for Claude Code
 
