@@ -1,0 +1,6 @@
+# Read nightly by the analytics dashboard to report how current this
+# deployment's bundled data is. Kept briefly cacheable so a stale edge copy
+# can't make a freshly deployed app look out of date, or a stale one look fine.
+/data-status.json
+  Cache-Control: public, max-age=300, must-revalidate
+  Access-Control-Allow-Origin: *
