@@ -1,3 +1,5 @@
+import { formatIsoMonth } from '../lib/formatDate';
+
 const CATEGORY_CONFIG = {
   A: {
     color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
@@ -43,15 +45,13 @@ const CATEGORY_CONFIG = {
   },
 };
 
-function formatTgaDate(dateStr) {
-  if (!dateStr) return null;
-  const d = new Date(dateStr + 'T00:00:00');
-  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-}
-
 export default function TGACategoryBadge({ category, statement, updatedDate }) {
   const config = CATEGORY_CONFIG[category];
   if (!config) return null;
+
+  // Omit the attribution entirely rather than render a dangling "—" or the
+  // literal text "Invalid Date" if the date is ever missing or malformed.
+  const revised = formatIsoMonth(updatedDate);
 
   return (
     <div className={`mt-3 rounded-2xl ${config.wash} p-4`}>
@@ -77,9 +77,11 @@ export default function TGACategoryBadge({ category, statement, updatedDate }) {
         </p>
       )}
 
-      <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-        Source: Australian TGA — {formatTgaDate(updatedDate) || updatedDate}
-      </p>
+      {revised && (
+        <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+          Source: Australian TGA, revised {revised}
+        </p>
+      )}
     </div>
   );
 }

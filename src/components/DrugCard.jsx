@@ -7,16 +7,7 @@ import TGACategoryBadge from './TGACategoryBadge';
 import ExternalLinks from './ExternalLinks';
 import ShareButton from './ShareButton';
 import FormattedText from './FormattedText';
-
-function formatDate(yyyymmdd) {
-  if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd;
-  const y = yyyymmdd.slice(0, 4);
-  const m = yyyymmdd.slice(4, 6);
-  const d = yyyymmdd.slice(6, 8);
-  return new Date(`${y}-${m}-${d}`).toLocaleDateString('en-US', {
-    year: 'numeric', month: 'short', day: 'numeric',
-  });
-}
+import { formatCompactDate } from '../lib/formatDate';
 
 const SECTIONS = [
   { key: 'clinicalConsiderations', label: 'Clinical Considerations' },
@@ -39,6 +30,10 @@ export default function DrugCard({ drug }) {
   const tgaStatement = isTGA ? drug.statement : tga?.type === 'exact' ? tga.statement : null;
   const tgaDate = isTGA ? TGA_UPDATED_SEARCH : TGA_UPDATED;
   const hasTGA = isTGA || (tga?.type === 'exact');
+
+  // FDA's own label effective date. Null rather than "Invalid Date" if the
+  // upstream value is malformed.
+  const labelDate = formatCompactDate(drug.effectiveTime);
 
   // Name to use for FDA API calls
   const fdaQueryName = drug.fdaName || drug.tgaName || drug.title;
@@ -119,9 +114,9 @@ export default function DrugCard({ drug }) {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
               US FDA Labeling
             </h3>
-            {drug.effectiveTime && (
+            {labelDate && (
               <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                Label: {formatDate(drug.effectiveTime)}
+                Label revised {labelDate}
               </span>
             )}
           </div>
