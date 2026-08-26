@@ -9,8 +9,12 @@ import { searchTGA } from './api/tgaSearch';
 import { searchDrugs } from './api/search';
 import { resolveLocalBrand, resolveBrand } from './api/brandResolver';
 
+import { recordDrugView } from './usage';
 function logDrugView(drugName) {
   fetch(`/api/count?q=${encodeURIComponent(drugName)}`).catch(() => {});
+  // Same event, our own service. drugName is always a resolved result title,
+  // never what someone typed; usage.js slugifies it before it leaves.
+  recordDrugView(drugName);
 }
 
 function getUrlDrug() {
