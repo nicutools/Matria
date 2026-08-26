@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import * as Sentry from '@sentry/react'
 import './index.css'
 import App from './App.jsx'
+import { recordAppOpened } from './usage'
 
 Sentry.init({
   dsn: 'https://03ebc0759f4fb531f2b5108e85576263@o4510967677452288.ingest.us.sentry.io/4510967692132352',
@@ -94,3 +95,6 @@ async function warmCommonDrugs() {
     await new Promise((r) => setTimeout(r, 1000));
   }
 }
+
+// Anonymous usage counter — see src/usage.js.
+recordAppOpened()
