@@ -15,7 +15,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_PATH = resolve(__dirname, '../src/data/tgaPregnancy.json');
@@ -149,38 +149,101 @@ async function discoverViaDirect() {
 /**
  * Saves a working CSV URL back to tga-config.json.
  */
-function saveConfig(csvUrl, updated) {
-  const config = { lastKnownCsvUrl: csvUrl, lastUpdated: updated };
+function saveConfig(csvUrl, updated, checked) {
+  const config = { lastKnownCsvUrl: csvUrl, lastUpdated: updated, lastChecked: checked };
   writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n', 'utf-8');
   console.log(`Saved ${csvUrl} to tga-config.json`);
 }
 
 /**
- * Extracts a date from the CSV URL filename for the _meta.updated field.
+ * Returns `iso` if it is a real calendar date in a plausible range, else null.
+ *
+ * A date shown to a clinician is a currency claim about pregnancy-safety data,
+ * so a value we cannot verify must become null (and ultimately a build
+ * failure), never a guess. Exported for tests.
+ */
+export function validateIsoDate(iso) {
+  if (typeof iso !== 'string') return null;
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  // The TGA database predates neither 2000 nor this script; a date outside a
+  // sane window means we parsed digits that were never a date.
+  if (year < 2000 || year > 2100) return null;
+
+  const probe = new Date(Date.UTC(year, month - 1, day));
+  if (
+    probe.getUTCFullYear() !== year ||
+    probe.getUTCMonth() !== month - 1 ||
+    probe.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
+/**
+ * Extracts the data date from the CSV URL filename.
  * Handles patterns like:
  *   medicines-pregnancy-current-database-2025-12-24.csv  → 2025-12-24
  *   medicines_in_pregnancy_current_database_for_web_250818.csv  → 2025-08-18
+ *
+ * Returns null when the filename carries no usable date. It used to return
+ * TODAY'S date in that case, which silently stamped a fresh currency date onto
+ * data of completely unknown age — the worst possible failure for a clinical
+ * tool, because it looks correct. Exported for tests.
  */
-function extractDateFromUrl(url) {
+export function extractDateFromUrl(url) {
+  if (typeof url !== 'string') return null;
+
   // Try YYYY-MM-DD pattern
   const isoMatch = url.match(/(\d{4}-\d{2}-\d{2})\.csv/);
-  if (isoMatch) return isoMatch[1];
+  if (isoMatch) return validateIsoDate(isoMatch[1]);
 
-  // Try YYMMDD pattern
+  // Try YYMMDD pattern. Validation matters here: without it, any six digits
+  // before ".csv" become a "date", so `...-123456.csv` yielded "2012-34-56"
+  // and rendered to clinicians as the literal text "Invalid Date".
   const shortMatch = url.match(/(\d{6})\.csv/);
   if (shortMatch) {
-    const s = shortMatch[1];
-    return `20${s.slice(0, 2)}-${s.slice(2, 4)}-${s.slice(4, 6)}`;
+    const d = shortMatch[1];
+    return validateIsoDate(`20${d.slice(0, 2)}-${d.slice(2, 4)}-${d.slice(4, 6)}`);
   }
 
-  // Fallback to today
-  return new Date().toISOString().slice(0, 10);
+  return null;
+}
+
+/**
+ * Falls back to the CSV response's Last-Modified header. Still a date the TGA
+ * itself asserts about the file — weaker than the filename, but sourced rather
+ * than invented. Exported for tests.
+ */
+export function dateFromLastModified(headerValue) {
+  if (!headerValue) return null;
+  const parsed = new Date(headerValue);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return validateIsoDate(parsed.toISOString().slice(0, 10));
 }
 
 async function main() {
   // Check for --url argument
   const urlArgIdx = process.argv.indexOf('--url');
   let csvUrl = urlArgIdx !== -1 ? process.argv[urlArgIdx + 1] : null;
+
+  // Optional --date override. The manual `--url` recovery path is the most
+  // likely way to end up with a dateless filename, and whoever runs it has just
+  // read the TGA page — so let them assert the date rather than lose it.
+  const dateArgIdx = process.argv.indexOf('--date');
+  const dateOverride = dateArgIdx !== -1 ? process.argv[dateArgIdx + 1] : null;
+  if (dateOverride && !validateIsoDate(dateOverride)) {
+    console.error(`--date must be a real calendar date as YYYY-MM-DD (got: ${dateOverride})`);
+    process.exit(1);
+  }
 
   // Tracks whether we could freshly discover the current CSV, or had to fall
   // back to the last-known URL (which may be stale — old TGA CSVs never 404,
@@ -231,12 +294,34 @@ async function main() {
     }
   }
 
-  const updated = extractDateFromUrl(csvUrl);
-  console.log(`Data date: ${updated}`);
-
   console.log('Downloading CSV...');
   const res = await fetch(csvUrl);
   if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+
+  // Resolve the data date, strongest source first. Every candidate is either
+  // asserted by a human who read the TGA page or by the TGA itself. If none
+  // yields a date we stop, rather than shipping data whose age we cannot state.
+  const updated =
+    validateIsoDate(dateOverride) ||
+    extractDateFromUrl(csvUrl) ||
+    dateFromLastModified(res.headers.get('last-modified'));
+
+  if (!updated) {
+    console.error(
+      '\n⚠️  Could not determine the date of this TGA data.\n' +
+      `  CSV URL: ${csvUrl}\n` +
+      `  Last-Modified: ${res.headers.get('last-modified') || '(absent)'}\n\n` +
+      'The bundled data was NOT updated. Shipping a drug-safety dataset without\n' +
+      'a verifiable date would leave clinicians unable to judge how current it\n' +
+      'is, and inventing one is worse. The previous data (whose date and\n' +
+      'contents match each other) stays in place.\n\n' +
+      'To fix: check the TGA page for the publication date and re-run with\n' +
+      '  node scripts/convert-tga-csv.js --url <CSV_URL> --date YYYY-MM-DD'
+    );
+    process.exit(1);
+  }
+
+  console.log(`Data date: ${updated}`);
 
   let text = await res.text();
 
@@ -275,7 +360,13 @@ async function main() {
   }
 
   // Save working URL to config for future fallback
-  saveConfig(csvUrl, updated);
+  // Only reached after the CSV was successfully downloaded, parsed and
+  // header-checked, and after a date was resolved. Every failure path exits
+  // before this, so `checked` can only ever mean "we reached the TGA and
+  // confirmed this is the data we hold" — never "the job ran".
+  const checked = new Date().toISOString().slice(0, 10);
+
+  saveConfig(csvUrl, updated, checked);
 
   const output = {
     _meta: {
@@ -283,6 +374,7 @@ async function main() {
       url: 'https://www.tga.gov.au/resources/health-professional-information-and-resources/australian-categorisation-system-prescribing-medicines-pregnancy/prescribing-medicines-pregnancy-database',
       csvUrl,
       updated,
+      checked,
       count,
     },
     data,
@@ -356,7 +448,10 @@ function parseCSV(text) {
   return rows;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only run when executed directly, so tests can import the helpers above.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

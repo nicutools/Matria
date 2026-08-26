@@ -31,6 +31,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Runs before the data update, so a regression in the date logic fails
+      # here rather than publishing a dataset with a wrong currency date.
+      - name: Test date logic
+        run: npm test
+
       - name: Update TGA pregnancy data
         id: tga
         continue-on-error: true
@@ -41,9 +46,22 @@ jobs:
             node scripts/convert-tga-csv.js
           fi
 
+      # BUMPS/MotherToBaby are a cosmetic link list. Without continue-on-error
+      # an outage on either site aborts the job AFTER the TGA step succeeded,
+      # so freshly downloaded pregnancy-safety data never gets committed or
+      # deployed — and no issue is opened, because the TGA step didn't fail.
+      # A link list must never be able to veto a TGA data update.
       - name: Update external links (BUMPS + MotherToBaby)
+        id: links
+        continue-on-error: true
         run: node scripts/validate-external-links.js
 
+      # _meta.checked advances on every successful TGA fetch, so this is now
+      # effectively "did the TGA step succeed", and a month where the data is
+      # byte-identical still rebuilds and deploys. That is deliberate: a
+      # synced-on date the user can see is only honest if the deployed bundle
+      # actually carries it. If the TGA step failed, the data file is untouched
+      # and nothing here advances.
       - name: Check for changes
         id: changes
         run: |
@@ -94,7 +112,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Create GitHub Issue on TGA failure
-        if: steps.tga.outcome == 'failure'
+        if: always() && steps.tga.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -144,3 +162,10 @@ jobs:
           ## If the TGA page looks different or broken
 
           The TGA occasionally restructures their website. If the page above doesn't have a CSV download link anymore, the discovery script may need updating. Open a separate issue or ask Claude Code for help."
+
+      - name: Warn if external links couldn't be refreshed
+        if: always() && steps.links.outcome == 'failure'
+        run: |
+          echo "::warning::BUMPS/MotherToBaby link refresh failed. The existing link"
+          echo "::warning::lists were kept and the TGA update was NOT blocked."
+          echo "::warning::These lists change rarely; no action is usually needed."

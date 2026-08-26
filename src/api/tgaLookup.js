@@ -1,6 +1,7 @@
 import tgaData from '../data/tgaPregnancy.json';
 
 export const TGA_UPDATED = tgaData._meta.updated;
+export const TGA_CHECKED = tgaData._meta.checked;
 
 /**
  * US generic names that differ from the INN/AU names used in the TGA database.
