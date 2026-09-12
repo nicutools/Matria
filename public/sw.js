@@ -1,7 +1,7 @@
 // Matria Service Worker
 // Bump CACHE_VERSION to invalidate all caches on deploy.
 
-const CACHE_VERSION = 'v29';
+const CACHE_VERSION = 'v30';
 const STATIC_CACHE = `matria-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `matria-runtime-${CACHE_VERSION}`;
 
@@ -46,7 +46,6 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   // Skip analytics-only endpoint (fire-and-forget, no caching needed)
-  if (url.pathname === '/api/count') return;
 
   // Network-first for API routes (Pages Function + OpenFDA + RxNorm)
   if (url.pathname.startsWith('/api/')) {

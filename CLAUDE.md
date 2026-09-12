@@ -16,7 +16,7 @@
 - **Hosting:** Cloudflare Pages (static assets + Pages Functions)
 - **Data Sources:** TGA (static JSON) + OpenFDA API (`api.fda.gov/drug/label.json`)
 - **API Proxies:** Three Cloudflare Pages Functions — two proxy OpenFDA requests (CORS bypass + server-side filtering), one records search analytics to KV
-- **Search Analytics:** Cloudflare Workers KV (`SEARCH_COUNTS` binding) — fire-and-forget drug view counting via `/api/count`
+- **Usage counts:** drug views go to `stats.nicutools.org` via `src/usage.js` (see the dashboard there). The former `/api/count` KV counter was removed 2026-09-12: its namespace was never bound and never held a key.
 - **State Management:** React useState
 - **Error Monitoring:** Sentry (`@sentry/react`) — captures unhandled errors + FDA API failures, privacy-safe (drug names stripped from URLs/breadcrumbs)
 - **Deploy:** `npm run build && npx wrangler pages deploy dist --project-name matria`
@@ -139,7 +139,6 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 - `src/api/pregnancy.js` — Client pregnancy wrapper (fetches `/api/pregnancy`)
 - `functions/api/search.js` — OpenFDA search proxy (FDA fallback): exact-match filter, salt-strip dedup, brand merging
 - `functions/api/pregnancy.js` — OpenFDA pregnancy data: 3-tier field fallback, subsection splitting, sub-heading insertion
-- `functions/api/count.js` — KV search analytics: fire-and-forget drug view counter (`SEARCH_COUNTS` binding)
 - `functions/api/tga-discover.js` — Cloudflare edge proxy for TGA CSV URL discovery (middle fallback in the convert script; CF Workers can't reach TGA — returns 502 — so effectively dead weight, kept only in case CF's WAF situation changes)
 - `.github/workflows/update-data.yml` — Monthly (1st, 3am UTC) + manual `workflow_dispatch` (with optional CSV URL input): runs `convert-tga-csv.js` + `validate-external-links.js`, bumps SW cache, commits, builds, deploys if data changed; opens a friendly GitHub Issue if TGA discovery fails
 - `.github/workflows/keepalive.yml` — Empty `[skip ci]` commit on the 1st & 22nd of each month to reset GitHub's 60-day scheduled-workflow inactivity clock, so `update-data.yml` is never auto-disabled during quiet stretches. Self-sustaining; no third-party actions
@@ -165,8 +164,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
   - Static assets: cache-first (precached on install)
   - Google Fonts: cache-first at runtime
   - API routes (`/api/*`, `api.fda.gov`, `rxnav.nlm.nih.gov`): network-first with cache fallback
-  - `/api/count`: bypassed entirely (fire-and-forget analytics, no caching)
-  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v25`)
+  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v27`)
 - **Cache warming:** `main.jsx` prefetches FDA pregnancy data for 8 common drugs 5s after first visit (1s gap). TGA search is instant (local) so doesn't need warming. Skipped on deep links.
 - **Manifest:** Standalone display, teal-600 theme (#0d9488)
 - **Icons:** Custom Matria branding — pregnant woman silhouette icon (192, 512, apple-touch-icon sizes) + logo with text for header
@@ -209,7 +207,7 @@ Shared with Lactia:
 - [x] **Custom domain** — `matria.nicutools.org` via Cloudflare DNS CNAME
 - [x] **Analytics** — Google Analytics GA4 (`G-4R6SD5H388`) via gtag snippet in `index.html`
 - [x] **Error monitoring** — Sentry (`@sentry/react`) captures unhandled errors + FDA API failures. Privacy-safe: drug names stripped from URLs and breadcrumbs. ErrorBoundary fallback UI wraps app.
-- [x] **Search analytics** — KV-based drug view frequency tracking via `/api/count` endpoint. `SEARCH_COUNTS` KV namespace bound in CF dashboard. Logs all drug views (TGA + FDA) fire-and-forget from client.
+- [x] **Search analytics** — drug views counted at `stats.nicutools.org` (the KV `/api/count` counter was removed 2026-09-12; it never recorded anything)
 - [x] **Sentry alert rules** — Configure email alert in Sentry UI (Alerts → Create Rule → "When a new issue is created, send email")
 - [x] **TGA workflow resilience** — Self-healing fallback chain (direct scrape → Cloudflare proxy → last-known URL; fresh-first so stale data can't be pinned), non-blocking workflow with friendly GitHub Issue on failure, manual CSV URL input for recovery
 - [x] **Keepalive workflow** — `.github/workflows/keepalive.yml` pushes an empty `[skip ci]` commit on the 1st & 22nd of each month, resetting GitHub's 60-day scheduled-workflow inactivity clock so the monthly data update never gets auto-disabled during quiet stretches. Self-sustaining (its own commits keep it enabled too); no third-party actions.
