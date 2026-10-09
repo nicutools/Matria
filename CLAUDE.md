@@ -57,7 +57,7 @@ TGA data is the primary data source — embedded directly in search results:
 2. **Search:** `src/api/tgaSearch.js` — primary search module. Searches TGA keys with brand + US→AU resolution.
 3. **Lookup (for FDA fallback):** `src/api/tgaLookup.js` — used by DrugCard when displaying FDA-sourced results. Tries exact match, US→AU name fallback, then prefix match for drug families.
 4. **Display:** `TGACategoryBadge` — colour-coded wash (green/amber/orange/red) with category letter, description, and safety statement all visible without tapping.
-5. **Update:** Run `node scripts/convert-tga-csv.js` when TGA publishes updated CSV (a few times per year).
+5. **Update:** Automatic — the monthly workflow checks the TGA and redeploys. To run it by hand: `node scripts/convert-tga-csv.js --browser`.
 
 ### C. FDA Pregnancy Labeling (OpenFDA via Pages Function Proxy)
 Secondary to TGA, loaded on demand via "Show FDA pregnancy labeling" button:
@@ -128,7 +128,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
 | `pregnancyRegistry` | Subsection of `pregnancy` (PLLR only) | Exposure registry info |
 
 ## 5. Key Files
-- `scripts/convert-tga-csv.js` — Downloads TGA CSV, converts to JSON. Discovery order: **direct scrape (fresh, retried 3×) → Cloudflare proxy → last-known URL**. Fresh discovery MUST run first — old TGA CSVs never 404, so a last-known HEAD check always succeeds and would otherwise pin stale data forever. A genuine fall-back to last-known exits non-zero so the workflow opens an alert issue instead of silently serving stale data.
+- `scripts/convert-tga-csv.js` — Downloads TGA CSV, converts to JSON. Discovery order: **browser (`--browser`, headed Chromium via Playwright) → direct scrape (fresh, retried 3×) → Cloudflare proxy → last-known URL**. Since Sep 2026 the TGA's Akamai resets every non-browser and headless client (curl, Node fetch, Workers, headless Chromium), so only the browser path works; the monthly workflow runs it under `xvfb-run`. Locally, `node scripts/convert-tga-csv.js --browser` opens a Chromium window briefly. Fresh discovery MUST run first — old TGA CSVs never 404, so a last-known HEAD check always succeeds and would otherwise pin stale data forever. A genuine fall-back to last-known exits non-zero so the workflow opens an alert issue instead of silently serving stale data.
 - `scripts/tga-config.json` — Last known working TGA CSV URL, auto-updated by convert script on success
 - `src/data/tgaPregnancy.json` — Static TGA pregnancy data (1,765 drugs, ~251KB, dated 2026-05-19)
 - `src/api/tgaSearch.js` — **Primary search module**: searches TGA data locally with brand + US→AU resolution

@@ -36,14 +36,21 @@ jobs:
       - name: Test date logic
         run: npm test
 
+      # The TGA's Akamai front end resets every non-browser and every headless
+      # client, from runners and home connections alike, but lets a headed
+      # browser through. So the update runs a real Chromium on a virtual
+      # display. Probed from this runner image in October 2026.
+      - name: Install Chromium for the TGA download
+        run: npx playwright install --with-deps chromium
+
       - name: Update TGA pregnancy data
         id: tga
         continue-on-error: true
         run: |
           if [ -n "${{ github.event.inputs.csv_url }}" ]; then
-            node scripts/convert-tga-csv.js --url "${{ github.event.inputs.csv_url }}"
+            xvfb-run -a node scripts/convert-tga-csv.js --browser --url "${{ github.event.inputs.csv_url }}"
           else
-            node scripts/convert-tga-csv.js
+            xvfb-run -a node scripts/convert-tga-csv.js --browser
           fi
 
       # BUMPS/MotherToBaby are a cosmetic link list. Without continue-on-error

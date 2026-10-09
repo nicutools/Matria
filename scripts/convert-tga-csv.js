@@ -7,6 +7,12 @@
  * Usage:
  *   node scripts/convert-tga-csv.js            # auto-discovers latest CSV from TGA website
  *   node scripts/convert-tga-csv.js --url URL   # use a specific CSV URL
+ *   node scripts/convert-tga-csv.js --browser   # discover + download through a real browser
+ *
+ * --browser is what the monthly workflow uses: the TGA now blocks every
+ * non-browser client (see tga-browser.js). It combines with --url and --date.
+ * Needs Playwright's Chromium (`npx playwright install chromium`) and a
+ * display, so in CI it runs under xvfb-run.
  *
  * The TGA updates this CSV a few times per year. Re-run when a new version is
  * published. The script auto-discovers the latest CSV URL from the TGA website,
@@ -16,6 +22,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fetchViaBrowser } from './tga-browser.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_PATH = resolve(__dirname, '../src/data/tgaPregnancy.json');
@@ -121,16 +128,11 @@ async function discoverViaDirect() {
         logStep('Direct', false, `HTTP ${res.status} for ${pageUrl} (attempt ${attempt}/${MAX_ATTEMPTS}, ${ms}ms)`);
       } else {
         const html = await res.text();
-        // Match the pregnancy-database CSV specifically, so an unrelated CSV
-        // elsewhere on the page can never be picked up by accident.
-        const match =
-          html.match(/["']([^"']*pregnancy[^"']*\.csv[^"']*?)["']/i) ||
-          html.match(/["']([^"']*\.csv[^"']*?)["']/i);
-        if (!match) {
+        const quoted = [...html.matchAll(/["']([^"']*\.csv[^"']*?)["']/gi)].map((m) => m[1]);
+        const csvUrl = pickCsvLink(quoted);
+        if (!csvUrl) {
           logStep('Direct', false, `No CSV link on page (attempt ${attempt}/${MAX_ATTEMPTS}, ${ms}ms)`);
         } else {
-          const csvPath = match[1];
-          const csvUrl = csvPath.startsWith('http') ? csvPath : TGA_BASE + csvPath;
           logStep('Direct', true, `${csvUrl} (${ms}ms)`);
           return csvUrl;
         }
@@ -144,6 +146,36 @@ async function discoverViaDirect() {
     }
   }
   return null;
+}
+
+/**
+ * Chooses the pregnancy-database CSV from a page's links, made absolute.
+ *
+ * Prefers a link naming "pregnancy", so an unrelated CSV elsewhere on the page
+ * can never be picked up by accident. Shared by the direct scrape and the
+ * browser path so both choose identically. Exported for tests.
+ */
+export function pickCsvLink(hrefs) {
+  const csvs = hrefs.filter((h) => typeof h === 'string' && /\.csv(\?|#|$)/i.test(h));
+  const chosen = csvs.find((h) => /pregnancy/i.test(h)) || csvs[0];
+  if (!chosen) return null;
+  return chosen.startsWith('http') ? chosen : TGA_BASE + chosen;
+}
+
+/**
+ * Discovery and download in one step, through a real browser.
+ * Returns null on failure so the caller can fall through the usual chain.
+ */
+async function downloadViaBrowser(csvUrl) {
+  const start = Date.now();
+  try {
+    const got = await fetchViaBrowser(TGA_BASE + TGA_PAGE, pickCsvLink, csvUrl);
+    logStep('Browser', true, `${got.csvUrl} (${Date.now() - start}ms)`);
+    return got;
+  } catch (err) {
+    logStep('Browser', false, `${err.message.split('\n')[0]} (${Date.now() - start}ms)`);
+    return null;
+  }
 }
 
 /**
@@ -250,7 +282,19 @@ async function main() {
   // so a live last-known URL is NOT evidence that it's still the newest one).
   let staleFallback = false;
 
-  if (csvUrl) {
+  // Set once the CSV is in hand. The browser path discovers and downloads in
+  // one go; every other path only discovers, and downloads below.
+  let downloaded = null;
+
+  if (process.argv.includes('--browser')) {
+    console.log('Fetching TGA CSV through a browser...');
+    downloaded = await downloadViaBrowser(csvUrl);
+    if (downloaded) csvUrl = downloaded.csvUrl;
+  }
+
+  if (downloaded) {
+    // Nothing left to discover.
+  } else if (csvUrl) {
     console.log(`Using provided URL: ${csvUrl}`);
   } else {
     console.log('Discovering TGA CSV URL...');
@@ -270,8 +314,8 @@ async function main() {
     if (!csvUrl) {
       console.error('\nAll discovery methods failed:\n' + diagnostics.join('\n'));
       console.error(
-        '\nManual fix: visit the TGA page, find the CSV link, and run:\n' +
-        '  node scripts/convert-tga-csv.js --url <CSV_URL>\n' +
+        '\nManual fix: run with a real browser from your own machine:\n' +
+        '  node scripts/convert-tga-csv.js --browser\n' +
         'Or re-run the GitHub workflow with the CSV URL input.'
       );
       process.exit(1);
@@ -294,9 +338,12 @@ async function main() {
     }
   }
 
-  console.log('Downloading CSV...');
-  const res = await fetch(csvUrl);
-  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+  if (!downloaded) {
+    console.log('Downloading CSV...');
+    const res = await fetch(csvUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    downloaded = { text: await res.text(), lastModified: res.headers.get('last-modified') };
+  }
 
   // Resolve the data date, strongest source first. Every candidate is either
   // asserted by a human who read the TGA page or by the TGA itself. If none
@@ -304,13 +351,13 @@ async function main() {
   const updated =
     validateIsoDate(dateOverride) ||
     extractDateFromUrl(csvUrl) ||
-    dateFromLastModified(res.headers.get('last-modified'));
+    dateFromLastModified(downloaded.lastModified);
 
   if (!updated) {
     console.error(
       '\n⚠️  Could not determine the date of this TGA data.\n' +
       `  CSV URL: ${csvUrl}\n` +
-      `  Last-Modified: ${res.headers.get('last-modified') || '(absent)'}\n\n` +
+      `  Last-Modified: ${downloaded.lastModified || '(absent)'}\n\n` +
       'The bundled data was NOT updated. Shipping a drug-safety dataset without\n' +
       'a verifiable date would leave clinicians unable to judge how current it\n' +
       'is, and inventing one is worse. The previous data (whose date and\n' +
@@ -323,7 +370,7 @@ async function main() {
 
   console.log(`Data date: ${updated}`);
 
-  let text = await res.text();
+  let text = downloaded.text;
 
   // Strip UTF-8 BOM if present
   if (text.charCodeAt(0) === 0xfeff) {

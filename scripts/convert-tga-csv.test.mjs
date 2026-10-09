@@ -10,6 +10,7 @@ import {
   extractDateFromUrl,
   validateIsoDate,
   dateFromLastModified,
+  pickCsvLink,
 } from './convert-tga-csv.js';
 
 test('extracts an ISO date from the CSV filename', () => {
@@ -68,4 +69,26 @@ test('ignores an unusable Last-Modified header', () => {
   assert.equal(dateFromLastModified('not a date'), null);
   assert.equal(dateFromLastModified(''), null);
   assert.equal(dateFromLastModified(null), null);
+});
+
+test('picks the pregnancy CSV over any other CSV on the page', () => {
+  assert.equal(
+    pickCsvLink([
+      'https://www.tga.gov.au/sites/default/files/other-report.csv',
+      'https://www.tga.gov.au/sites/default/files/2026-05/medicines-pregnancy-current-database-2026-05-19.csv',
+    ]),
+    'https://www.tga.gov.au/sites/default/files/2026-05/medicines-pregnancy-current-database-2026-05-19.csv',
+  );
+});
+
+test('makes a root-relative CSV link absolute', () => {
+  assert.equal(
+    pickCsvLink(['/sites/default/files/medicines-pregnancy.csv']),
+    'https://www.tga.gov.au/sites/default/files/medicines-pregnancy.csv',
+  );
+});
+
+test('ignores links that only mention csv, and reports none found', () => {
+  assert.equal(pickCsvLink(['https://www.tga.gov.au/csv-help', 'https://www.tga.gov.au/']), null);
+  assert.equal(pickCsvLink([]), null);
 });
