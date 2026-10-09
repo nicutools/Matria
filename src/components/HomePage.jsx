@@ -62,7 +62,7 @@ export default function HomePage({ onDrugSelect }) {
         <div className="mt-8">
           <div className="mb-3 flex items-center justify-center gap-2">
             <h2 className="text-center text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-              Recent searches
+              My recent searches
             </h2>
             <button
               onClick={clearRecent}
@@ -87,7 +87,7 @@ export default function HomePage({ onDrugSelect }) {
 
       <div className="mt-8">
         <h2 className="mb-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-          Common searches
+          Try searching
         </h2>
         <div className="flex flex-wrap justify-center gap-2">
           {POPULAR_DRUGS.map((name) => (

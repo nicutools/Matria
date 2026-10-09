@@ -164,7 +164,7 @@ Both search and pregnancy endpoints strip common salt forms for matching and dis
   - Static assets: cache-first (precached on install)
   - Google Fonts: cache-first at runtime
   - API routes (`/api/*`, `api.fda.gov`, `rxnav.nlm.nih.gov`): network-first with cache fallback
-  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v27`)
+  - **Bump `CACHE_VERSION` on every deploy** to invalidate caches (currently `v31`)
 - **Cache warming:** `main.jsx` prefetches FDA pregnancy data for 8 common drugs 5s after first visit (1s gap). TGA search is instant (local) so doesn't need warming. Skipped on deep links.
 - **Manifest:** Standalone display, teal-600 theme (#0d9488)
 - **Icons:** Custom Matria branding — pregnant woman silhouette icon (192, 512, apple-touch-icon sizes) + logo with text for header
