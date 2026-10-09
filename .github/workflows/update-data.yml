@@ -116,11 +116,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Check for existing open issue to avoid duplicates
+          # One open issue at a time, but every failure is recorded on it.
+          # Skipping silently here let issue #1 sit open from May while the
+          # TGA step kept failing, so a repeat failure looked exactly like no
+          # failure at all. A comment sends a notification; a skip does not.
           EXISTING=$(gh issue list --label "tga-update-failed" --state open --limit 1 --json number --jq '.[0].number // empty')
 
           if [ -n "$EXISTING" ]; then
-            echo "Open issue #$EXISTING already exists — skipping."
+            LAST_SYNCED=$(jq -r '.lastChecked // "unknown"' scripts/tga-config.json)
+            gh issue comment "$EXISTING" --body "Failed again on $(date -u +%Y-%m-%d) ([run log](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})). The app is still serving TGA data last synced on ${LAST_SYNCED}."
+            echo "Commented on open issue #$EXISTING."
             exit 0
           fi
 
